@@ -1,33 +1,8 @@
 library(testthat)
 library(httr2)
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-httr2_mock_resp <- function(body, status = 200L) {
-  structure(
-    list(
-      method = "GET",
-      url = "https://api.eolas.fyi/test",
-      status_code = status,
-      headers = structure(list(`content-type` = "application/json"), class = "httr2_headers"),
-      body = charToRaw(body),
-      cache = new.env(parent = emptyenv())
-    ),
-    class = "httr2_response"
-  )
-}
-
-with_mock_eolas <- function(body, status = 200L, code) {
-  ns <- getNamespace("eolas")
-  assign("key", "eolas_testkey", envir = ns$.eolas_env)
-  local_mocked_bindings(
-    eolas_http_perform = function(...) httr2_mock_resp(body, status),
-    .env = ns
-  )
-  code
-}
+# httr2_mock_resp() and with_mock_eolas() now live in helper.R so they can
+# be shared with test-integration.R.
 
 DATASET_LIST_BODY <- '[
   {"name":"nz_cpi","title":"NZ CPI","source":"Stats NZ","namespace":"statsnz","description":""},

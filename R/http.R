@@ -15,7 +15,10 @@ eolas_check_status <- function(resp) {
   detail <- body$detail %||% "Unknown error"
 
   if (status == 401L) stop("Authentication error: invalid or missing API key.", call. = FALSE)
-  if (status == 403L) stop("Authentication error: API key is inactive.", call. = FALSE)
+  # 403 detail is passed through verbatim. Used for Enterprise-only endpoints
+  # (e.g. `eolas_integration()`) where the server's message tells the caller
+  # exactly which upgrade they need.
+  if (status == 403L) stop(paste0("Authentication error: ", detail), call. = FALSE)
   if (status == 429L) stop("Rate limit reached. Upgrade to Pro for unlimited access.", call. = FALSE)
   if (status == 404L) stop(paste0("Not found: ", detail), call. = FALSE)
   stop(paste0("API error (HTTP ", status, "): ", detail), call. = FALSE)

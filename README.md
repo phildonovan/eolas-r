@@ -39,6 +39,26 @@ One `eolas_get_*()` and `eolas_list_*()` per source:
 
 `statsnz`, `statsnz_geo`, `oecd`, `rbnz`, `treasury`, `linz`, `mbie`, `nzta`, `msd`, `police`, `acc`, `edcounts`, `worksafe`.
 
+## Integrations (Enterprise plan)
+
+Generate ready-to-run connector configs for popular data-pipeline tools (Meltano, Fivetran, Azure Data Factory) directly from R:
+
+```r
+# In-memory: inspect what the server would generate
+result <- eolas_integration("meltano", c("nz_cpi", "nz_gdp"))
+names(result$files)            # "meltano.yml", "README.md", ".env.example"
+cat(result$files$meltano.yml)
+
+# Or write straight to a directory ready for `meltano install`
+eolas_integration(
+  "meltano",
+  c("nz_cpi", "nz_gdp"),
+  output_dir = "./my-pipeline"
+)
+```
+
+This is an Enterprise-plan feature. Non-Enterprise keys see the server's upgrade-pointer error message; the gating lives server-side so it's bypass-proof. See <https://eolas.fyi/#pricing>.
+
 ## Geospatial
 
 Datasets with a `geometry_wkt` column auto-convert to `sf` objects (CRS WGS84) when the `sf` package is available:

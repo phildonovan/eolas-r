@@ -1,0 +1,15 @@
+# R artefacts
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+.Rcheck/
+*.Rcheck/
+*.tar.gz
+*.tgz
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
