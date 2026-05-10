@@ -1,0 +1,85 @@
+name: Catalog drift detector
+
+# Pings when the live eolas.fyi catalog has gained/lost datasets vs the
+# baseline snapshot we shipped in inst/catalog_snapshot.json. Opens (or
+# updates) a single tracking issue rather than spamming.
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"  # Mondays 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare live catalog to baseline
+        id: drift
+        run: |
+          python3 <<'PY'
+          import json, os, urllib.request
+
+          with open("inst/catalog_snapshot.json") as f:
+              base = json.load(f)
+          baseline = set(base["names"])
+          baseline_date = base["snapshot_date"]
+
+          with urllib.request.urlopen("https://api.eolas.fyi/v1/datasets", timeout=30) as r:
+              live = json.load(r)
+          live_names = {d["name"] for d in live}
+
+          added = sorted(live_names - baseline)
+          removed = sorted(baseline - live_names)
+          new_count = len(live_names)
+          base_count = len(baseline)
+          delta_pct = (new_count - base_count) / max(base_count, 1) * 100
+
+          significant = (
+              len(added) >= 10
+              or len(removed) >= 1
+              or abs(delta_pct) >= 5.0
+          )
+
+          summary = (
+              f"Baseline (release {baseline_date}): {base_count} datasets\\n"
+              f"Live now: {new_count} datasets ({delta_pct:+.1f}%)\\n\\n"
+              f"Added ({len(added)}): {', '.join(added[:30])}"
+              f"{' ...' if len(added) > 30 else ''}\\n\\n"
+              f"Removed ({len(removed)}): {', '.join(removed) or 'none'}"
+          )
+          print(summary)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"significant={'true' if significant else 'false'}\n")
+              f.write(f"new_count={new_count}\n")
+              f.write(f"base_count={base_count}\n")
+              f.write("summary<<EOF\n")
+              f.write(summary.replace("\\n", "\n"))
+              f.write("\nEOF\n")
+          PY
+
+      - name: Open or update drift issue
+        if: steps.drift.outputs.significant == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUMMARY: ${{ steps.drift.outputs.summary }}
+          NEW_COUNT: ${{ steps.drift.outputs.new_count }}
+          BASE_COUNT: ${{ steps.drift.outputs.base_count }}
+        run: |
+          set -euo pipefail
+          TITLE="Catalog drift: ${BASE_COUNT} → ${NEW_COUNT} datasets"
+          BODY=$(printf 'The live API catalog has drifted from the shipped baseline.\n\n%s\n\n---\n\nIf this delta warrants a release: bump version in DESCRIPTION, regenerate `inst/catalog_snapshot.json` from the live API, commit, tag, push.\n' "$SUMMARY")
+
+          EXISTING=$(gh issue list --label catalog-drift --state open --json number --jq '.[0].number' || true)
+          if [ -n "$EXISTING" ]; then
+            gh issue edit "$EXISTING" --title "$TITLE" --body "$BODY"
+          else
+            gh label create catalog-drift --color BFD4F2 --description "Live catalog has drifted from shipped baseline" 2>/dev/null || true
+            gh issue create --title "$TITLE" --body "$BODY" --label catalog-drift
+          fi
