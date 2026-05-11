@@ -23,47 +23,10 @@ print.eolas_dataset <- function(x, ...) {
 }
 
 
-#' Quick line plot for a eolas_dataset
-#'
-#' A thin ggplot2 wrapper that returns a `ggplot` object — add further layers
-#' with `+` as usual.
-#'
-#' @param x An `eolas_dataset` returned by any `eolas_get_*()` function.
-#' @param ... Ignored.
-#' @return A `ggplot` object.
-#' @export
-#' @examples
-#' \dontrun{
-#' eolas_key("your_key")
-#' df <- eolas_get_statsnz("nz_cpi", start = "2015-01-01")
-#' eolas_plot(df)
-#' }
-eolas_plot <- function(x, ...) {
-  if (!requireNamespace("ggplot2", quietly = TRUE))
-    stop("ggplot2 is required. Install with install.packages('ggplot2')", call. = FALSE)
-
-  name   <- attr(x, "eolas_name")   %||% "Dataset"
-  source <- attr(x, "eolas_source") %||% ""
-
-  date_col  <- if ("date"  %in% names(x)) "date"  else names(x)[1]
-  value_col <- if ("value" %in% names(x)) "value" else names(x)[2]
-
-  caption <- if (nchar(source) > 0)
-    paste0("Source: ", source, " · eolas.fyi")
-  else
-    "eolas.fyi"
-
-  ggplot2::ggplot(x, ggplot2::aes(x = .data[[date_col]], y = .data[[value_col]])) +
-    ggplot2::geom_line(colour = "#2563eb", linewidth = 0.8) +
-    ggplot2::labs(
-      title   = name,
-      x       = NULL,
-      y       = NULL,
-      caption = caption
-    ) +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(
-      plot.title   = ggplot2::element_text(face = "bold"),
-      plot.caption = ggplot2::element_text(colour = "#9ca3af", size = 9)
-    )
-}
+# `eolas_plot()` was removed in v1.3.0. It silently mis-rendered datasets
+# with multiple series per date — it auto-picked `value` as the y column
+# and drew a single line, which produced zigzag traces wherever the
+# response had a dimension column (e.g. measure, frequency, age band).
+# Rather than ship a helper that needs to know each dataset's shape, we
+# leave plotting to the caller — ggplot2 / plotly know better than we do
+# once you have a tidy data frame. See README for one-liners.

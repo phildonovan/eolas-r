@@ -60,7 +60,8 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' \dontrun{
 #' eolas_key("your_key")
 #' df <- eolas_get("nz_cpi", start = "2020-01-01")
-#' eolas_plot(df)
+#' library(ggplot2)
+#' ggplot(df, aes(date, value)) + geom_line()
 #' }
 eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
                    as_sf = NULL, base_url = EOLAS_BASE_URL) {

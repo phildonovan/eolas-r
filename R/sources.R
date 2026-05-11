@@ -1,6 +1,6 @@
 # Source-specific get and list functions.
-# Each vs_get_<source>() is a named wrapper over eolas_get() that tags the result
-# with the source label, enabling the print method and eolas_plot() caption.
+# Each vs_get_<source>() is a named wrapper over eolas_get() that tags the
+# result with the source label, used by the eolas_dataset print method.
 
 .eolas_get_source <- function(name, source, start = NULL, end = NULL,
                             limit = NULL, as_sf = NULL,
@@ -44,7 +44,8 @@
 #' \dontrun{
 #' eolas_key("your_key")
 #' df <- eolas_get_statsnz("nz_cpi", start = "2015-01-01")
-#' eolas_plot(df)
+#' library(ggplot2)
+#' ggplot(df, aes(date, value)) + geom_line()
 #' }
 eolas_get_statsnz <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL) {
   .eolas_get_source(name, "Stats NZ", start = start, end = end, limit = limit, as_sf = as_sf)
@@ -121,19 +122,32 @@ eolas_list_linz <- function() .eolas_list_source("LINZ")
 
 
 # ---------------------------------------------------------------------------
-# Stats NZ Geospatial
+# Stats NZ Geospatial (server-side source label collapsed to "Stats NZ"; we
+# keep these helpers for discoverability and filter by namespace instead).
 # ---------------------------------------------------------------------------
 
-#' Fetch a Stats NZ Geospatial dataset
+#' Fetch a Stats NZ geospatial dataset (boundaries, census meshblocks, etc.).
+#'
+#' The server returns `source = "Stats NZ"` for both SDMX time series and
+#' Datafinder geospatial datasets — the eolas_dataset attribute reflects that.
+#' This helper exists as a discoverability shortcut, not a separate source.
 #' @inheritParams eolas_get_statsnz
 #' @export
 eolas_get_statsnz_geo <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL) {
-  .eolas_get_source(name, "Stats NZ Geospatial", start = start, end = end, limit = limit, as_sf = as_sf)
+  .eolas_get_source(name, "Stats NZ", start = start, end = end, limit = limit, as_sf = as_sf)
 }
 
-#' List all Stats NZ Geospatial datasets
+#' List Stats NZ geospatial datasets only (filtered by namespace).
+#'
+#' Filters on `namespace == "statsnz_geo"` rather than the source label, because
+#' the source label "Stats NZ" is now shared with the SDMX time-series datasets.
 #' @export
-eolas_list_statsnz_geo <- function() .eolas_list_source("Stats NZ Geospatial")
+eolas_list_statsnz_geo <- function() {
+  df <- eolas_list()
+  df <- df[!is.na(df$namespace) & df$namespace == "statsnz_geo", ]
+  rownames(df) <- NULL
+  df
+}
 
 
 # ---------------------------------------------------------------------------

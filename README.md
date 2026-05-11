@@ -12,13 +12,14 @@ remotes::install_github("phildonovan/eolas-r")
 
 ```r
 library(eolas)
+library(ggplot2)
 
 eolas_key("your_api_key")   # or set EOLAS_API_KEY in .Renviron
 
 # Generic
 df <- eolas_get("nz_cpi", start = "2020-01-01")
 
-# Source-tagged (sets the `eolas_source` attr, used by eolas_plot caption)
+# Source-tagged (sets the `eolas_source` attr for downstream display)
 df <- eolas_get_statsnz("nz_cpi")
 df <- eolas_get_oecd("nz_gdp_production_annual")
 
@@ -27,8 +28,9 @@ all_datasets <- eolas_list()
 nz_only      <- eolas_list("Stats NZ")
 meta         <- eolas_info("nz_cpi")
 
-# Quick plot
-eolas_plot(df)
+# Plot — use ggplot2 directly. eolas_get_* returns tidy data frames so
+# `aes(date, value)` is usually all you need:
+ggplot(df, aes(date, value)) + geom_line()
 ```
 
 Get an API key at <https://eolas.fyi/signup>. Free plan is 10 requests/month; Starter is 100; Pro is unlimited.
@@ -79,7 +81,7 @@ The previous package name was `vswarehouse` (`library(vswarehouse)`). Direct equ
 | `vs_key(key)` | `eolas_key(key)` |
 | `vs_list()`, `vs_info()`, `vs_get()` | `eolas_list()`, `eolas_info()`, `eolas_get()` |
 | `vs_get_statsnz()`, `vs_get_oecd()`, ... | `eolas_get_statsnz()`, `eolas_get_oecd()`, ... |
-| `vs_plot()` | `eolas_plot()` |
+| `vs_plot()` | *(removed in v1.3.0 — use `ggplot()` directly; the helper silently mis-rendered datasets with multi-row dates)* |
 | `vs_series` class | `eolas_dataset` class |
 | `attr(df, "vs_name")` / `vs_source` | `attr(df, "eolas_name")` / `eolas_source` |
 | `VS_API_KEY` env var | `EOLAS_API_KEY` (legacy `VS_API_KEY` still honoured) |
