@@ -107,6 +107,21 @@ test_that("eolas_get returns a eolas_dataset with Date column", {
   })
 })
 
+test_that("eolas_get sorts rows by date (API streams in file order)", {
+  unsorted_body <- '{"data":[
+    {"date":"2023-04-01","period":"2023Q2","value":101.5},
+    {"date":"2022-01-01","period":"2022Q1","value":99.0},
+    {"date":"2023-01-01","period":"2023Q1","value":100.0}
+  ]}'
+  with_mock_eolas(unsorted_body, code = {
+    df <- eolas_get("nz_cpi")
+    expect_equal(
+      as.character(df$date),
+      c("2022-01-01", "2023-01-01", "2023-04-01")
+    )
+  })
+})
+
 # ---------------------------------------------------------------------------
 # vs_get_* source functions
 # ---------------------------------------------------------------------------

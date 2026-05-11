@@ -77,7 +77,13 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   body <- httr2::resp_body_json(resp, simplifyVector = TRUE)
   df   <- as.data.frame(body$data %||% body)
 
-  if ("date" %in% names(df)) df$date <- as.Date(df$date)
+  if ("date" %in% names(df)) {
+    df$date <- as.Date(df$date)
+    # API streams from Iceberg in file order, not chronological — sort here so
+    # callers can `ggplot(df, aes(date, value)) + geom_line()` without zigzag.
+    df <- df[order(df$date), , drop = FALSE]
+    rownames(df) <- NULL
+  }
 
   result <- new_eolas_dataset(df, name = name)
 
