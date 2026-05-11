@@ -260,3 +260,58 @@ eolas_get_worksafe <- function(name, start = NULL, end = NULL, limit = NULL, as_
 #' List all WorkSafe NZ datasets
 #' @export
 eolas_list_worksafe <- function() .eolas_list_source("WorkSafe NZ")
+
+
+# ---------------------------------------------------------------------------
+# Immigration NZ
+# ---------------------------------------------------------------------------
+
+#' Fetch an Immigration NZ dataset
+#' @inheritParams eolas_get_statsnz
+#' @export
+eolas_get_immigration <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL) {
+  .eolas_get_source(name, "Immigration NZ", start = start, end = end, limit = limit, as_sf = as_sf)
+}
+
+#' List all Immigration NZ datasets
+#' @export
+eolas_list_immigration <- function() .eolas_list_source("Immigration NZ")
+
+
+# ---------------------------------------------------------------------------
+# Manaaki Whenua / LRIS
+# ---------------------------------------------------------------------------
+
+#' Fetch a Manaaki Whenua / LRIS dataset (land cover, soil, protected areas)
+#'
+#' A named wrapper over [eolas_get()] for datasets sourced from the Land
+#' Resource Information System (LRIS), managed by Manaaki Whenua - Landcare
+#' Research NZ. Covers LCDB land-cover vintages (v3.0 through v6), NZLUM land
+#' use management, PBC, and the PAN-NZ protected areas layer.
+#'
+#' @inheritParams eolas_get_statsnz
+#' @return A `eolas_dataset` data frame, or an `sf` object when geometry is
+#'   present and conversion is enabled.
+#' @details
+#'   LCDB v3.0-v4.1 are deprecated vintages retained for longitudinal analysis.
+#'   LCDB v5 is superseded by v6 but still served.
+#'   `pan_nz_2025_draft` was marked Draft at the time of ingestion (2026-05-12).
+#'   Source: \url{https://lris.scinfo.org.nz}.
+#'   Licence: CC-BY 4.0 International (LCDB v5/v6, NZLUM, PBC, PAN-NZ);
+#'   CC-BY 3.0 NZ (LCDB v3/v4 vintages). Attribution: Manaaki Whenua.
+#' @export
+#' @examples
+#' \dontrun{
+#' eolas_key("your_key")
+#' gdf <- eolas_get_lris("lcdb_v6_mainland")   # current NZ land cover
+#' gdf <- eolas_get_lris("nzlum_v03")          # NZ Land Use Management v0.3
+#' gdf <- eolas_get_lris("pan_nz_2025_draft")  # protected areas (Draft, 2025)
+#' }
+eolas_get_lris <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL) {
+  .eolas_get_source(name, "Manaaki Whenua / LRIS", start = start, end = end, limit = limit, as_sf = as_sf)
+}
+
+#' List all Manaaki Whenua / LRIS datasets
+#' @return A data frame (tibble if available) of dataset metadata.
+#' @export
+eolas_list_lris <- function() .eolas_list_source("Manaaki Whenua / LRIS")
