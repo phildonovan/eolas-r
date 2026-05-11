@@ -352,3 +352,41 @@ eolas_get_geonet <- function(name, start = NULL, end = NULL, limit = NULL, as_sf
 #' @return A data frame (tibble if available) of dataset metadata.
 #' @export
 eolas_list_geonet <- function() .eolas_list_source("GeoNet")
+
+
+# ---------------------------------------------------------------------------
+# DOC (Department of Conservation)
+# ---------------------------------------------------------------------------
+
+#' Fetch a DOC (Department of Conservation) dataset
+#'
+#' A named wrapper over [eolas_get()] for datasets sourced from the
+#' Department of Conservation (DOC). Covers public conservation land polygons,
+#' hut and campsite locations, walking experiences, tracks, marine reserves,
+#' and marine mammal sanctuaries.
+#'
+#' @inheritParams eolas_get_statsnz
+#' @return A `eolas_dataset` data frame, or an `sf` object when geometry is
+#'   present and conversion is enabled.
+#' @details
+#'   Refreshed weekly from DOC's ArcGIS hub. Operational alert streams
+#'   (track closures, hazard notices) are wired but currently blocked on
+#'   an API key issue; they will appear automatically once resolved.
+#'   Source: \url{https://doc.govt.nz}.
+#'   Licence: CC-BY 4.0 International (Crown / Department of Conservation).
+#' @export
+#' @examples
+#' \dontrun{
+#' eolas_key("your_key")
+#' huts  <- eolas_get_doc("doc_huts")                        # 1,429 DOC huts (Point)
+#' land  <- eolas_get_doc("doc_public_conservation_land")    # ~11k conservation land polygons
+#' trks  <- eolas_get_doc("doc_tracks")                      # 3,248 DOC tracks (Polyline)
+#' }
+eolas_get_doc <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL) {
+  .eolas_get_source(name, "DOC", start = start, end = end, limit = limit, as_sf = as_sf)
+}
+
+#' List all DOC datasets available in eolas
+#' @return A data frame (tibble if available) of dataset metadata.
+#' @export
+eolas_list_doc <- function() .eolas_list_source("DOC")
