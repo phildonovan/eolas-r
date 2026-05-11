@@ -315,3 +315,40 @@ eolas_get_lris <- function(name, start = NULL, end = NULL, limit = NULL, as_sf =
 #' @return A data frame (tibble if available) of dataset metadata.
 #' @export
 eolas_list_lris <- function() .eolas_list_source("Manaaki Whenua / LRIS")
+
+
+# ---------------------------------------------------------------------------
+# GeoNet
+# ---------------------------------------------------------------------------
+
+#' Fetch a GeoNet dataset (NZ earthquakes, volcanic alert levels, strong-motion sensors)
+#'
+#' A named wrapper over [eolas_get()] for datasets sourced from GeoNet,
+#' operated by Earth Sciences New Zealand (formerly GNS Science). Covers
+#' recent NZ earthquake activity (MMI>=3), volcanic alert levels for 12
+#' monitored volcanoes, and strong-motion sensor station locations.
+#'
+#' @inheritParams eolas_get_statsnz
+#' @return A `eolas_dataset` data frame, or an `sf` object when geometry is
+#'   present and conversion is enabled.
+#' @details
+#'   The earthquake catalogue (`geonet_quakes_recent`) is a rolling window of
+#'   recent events, not a historical archive. Refreshed every 6 hours.
+#'   Source: \url{https://www.geonet.org.nz}.
+#'   Licence: CC-BY 3.0 NZ (Earth Sciences New Zealand, formerly GNS Science).
+#' @export
+#' @examples
+#' \dontrun{
+#' eolas_key("your_key")
+#' df  <- eolas_get_geonet("geonet_quakes_recent")         # rolling ~100 recent MMI>=3 quakes
+#' df  <- eolas_get_geonet("geonet_volcanic_alert_levels") # 12 monitored NZ volcanoes
+#' gdf <- eolas_get_geonet("geonet_strong_motion_sensors") # 25 strong-motion stations
+#' }
+eolas_get_geonet <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL) {
+  .eolas_get_source(name, "GeoNet", start = start, end = end, limit = limit, as_sf = as_sf)
+}
+
+#' List all GeoNet datasets available in eolas
+#' @return A data frame (tibble if available) of dataset metadata.
+#' @export
+eolas_list_geonet <- function() .eolas_list_source("GeoNet")
