@@ -247,6 +247,47 @@ eolas_list_edcounts <- function() .eolas_list_source("Education Counts")
 
 
 # ---------------------------------------------------------------------------
+# EECA (Energy Efficiency and Conservation Authority)
+# ---------------------------------------------------------------------------
+
+#' Fetch an EECA dataset (NZ energy use, EV chargers, regional heat demand)
+#'
+#' A named wrapper over [eolas_get()] for datasets from the Energy Efficiency
+#' and Conservation Authority (EECA). Covers NZ energy end-use by sector and
+#' fuel type, public and co-funded EV charger locations, quarterly EV
+#' penetration metrics by region and territorial authority, and regional
+#' industrial process heat demand.
+#'
+#' @inheritParams eolas_get_statsnz
+#' @return A `eolas_dataset` data frame, or an `sf` object when geometry is
+#'   present and conversion is enabled.
+#' @details
+#'   EV charger streams (`eeca_ev_chargers_public`, `eeca_ev_chargers_cofunded`)
+#'   carry point geometry and refresh quarterly.
+#'   `eeca_energy_end_use` is the annual Energy End Use Database (EEUD).
+#'   `eeca_regional_heat_demand` is an Aug 2024 snapshot.
+#'   Source: \url{https://www.eeca.govt.nz/insights/data-tools/}.
+#'   Licence: CC-BY 4.0 NZ (Crown).
+#' @export
+#' @examples
+#' \dontrun{
+#' eolas_key("your_key")
+#' df  <- eolas_get_eeca("eeca_energy_end_use")         # NZ energy by sector x fuel x end-use x year
+#' gdf <- eolas_get_eeca("eeca_ev_chargers_public")     # public EV charging network (Point geometry)
+#' df  <- eolas_get_eeca("eeca_ev_metrics_district")    # EV penetration by territorial authority
+#' df  <- eolas_get_eeca("eeca_regional_heat_demand")   # industrial process heat by region x sector
+#' }
+eolas_get_eeca <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL) {
+  .eolas_get_source(name, "EECA", start = start, end = end, limit = limit, as_sf = as_sf)
+}
+
+#' List all EECA datasets available in eolas
+#' @return A data frame (tibble if available) of dataset metadata.
+#' @export
+eolas_list_eeca <- function() .eolas_list_source("EECA")
+
+
+# ---------------------------------------------------------------------------
 # WorkSafe NZ
 # ---------------------------------------------------------------------------
 
