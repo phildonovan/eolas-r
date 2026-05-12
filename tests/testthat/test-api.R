@@ -61,7 +61,7 @@ test_that("eolas_list filters by source", {
 })
 
 # ---------------------------------------------------------------------------
-# vs_list_* convenience wrappers
+# eolas_list_* convenience wrappers
 # ---------------------------------------------------------------------------
 
 test_that("eolas_list_statsnz returns only Stats NZ rows", {
@@ -123,7 +123,7 @@ test_that("eolas_get sorts rows by date (API streams in file order)", {
 })
 
 # ---------------------------------------------------------------------------
-# vs_get_* source functions
+# eolas_get_* source functions
 # ---------------------------------------------------------------------------
 
 test_that("eolas_get_statsnz tags result with Stats NZ source", {

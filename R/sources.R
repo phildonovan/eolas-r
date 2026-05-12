@@ -1,5 +1,5 @@
 # Source-specific get and list functions.
-# Each vs_get_<source>() is a named wrapper over eolas_get() that tags the
+# Each eolas_get_<source>() is a named wrapper over eolas_get() that tags the
 # result with the source label, used by the eolas_dataset print method.
 
 .eolas_get_source <- function(name, source, start = NULL, end = NULL,
