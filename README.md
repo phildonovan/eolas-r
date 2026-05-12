@@ -71,23 +71,6 @@ gdf <- eolas_get("nz_addresses")          # sf object
 df  <- eolas_get("nz_addresses", as_sf = FALSE)  # plain df, WKT preserved
 ```
 
-## Migrating from `vswarehouse`
-
-The previous package name was `vswarehouse` (`library(vswarehouse)`). Direct equivalents:
-
-| `vswarehouse` | `eolas` |
-|---|---|
-| `library(vswarehouse)` | `library(eolas)` |
-| `vs_key(key)` | `eolas_key(key)` |
-| `vs_list()`, `vs_info()`, `vs_get()` | `eolas_list()`, `eolas_info()`, `eolas_get()` |
-| `vs_get_statsnz()`, `vs_get_oecd()`, ... | `eolas_get_statsnz()`, `eolas_get_oecd()`, ... |
-| `vs_plot()` | *(removed in v1.3.0 — use `ggplot()` directly; the helper silently mis-rendered datasets with multi-row dates)* |
-| `vs_series` class | `eolas_dataset` class |
-| `attr(df, "vs_name")` / `vs_source` | `attr(df, "eolas_name")` / `eolas_source` |
-| `VS_API_KEY` env var | `EOLAS_API_KEY` (legacy `VS_API_KEY` still honoured) |
-
-The default base URL is now `https://api.eolas.fyi` (was `https://api.virtus-solutions.io`, which 301-redirects).
-
 ## License
 
 MIT

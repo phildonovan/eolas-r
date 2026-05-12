@@ -19,11 +19,8 @@ eolas_key <- function(key) {
 }
 
 eolas_get_key_internal <- function() {
-  # EOLAS_API_KEY is the canonical env var. VS_API_KEY is honoured for back-compat
-  # with the legacy vswarehouse package.
   key <- .eolas_env$key %||%
-         Sys.getenv("EOLAS_API_KEY", unset = "") %|""|%
-         Sys.getenv("VS_API_KEY", unset = "")
+         Sys.getenv("EOLAS_API_KEY", unset = "")
   if (nchar(key) == 0) {
     stop(
       "No API key found. Call eolas_key(\"...\") or set the EOLAS_API_KEY ",
@@ -35,7 +32,3 @@ eolas_get_key_internal <- function() {
 }
 
 `%||%` <- function(x, y) if (!is.null(x)) x else y
-
-# Like `%||%` but treats empty strings as missing. Used for env-var chaining
-# where Sys.getenv() returns "" when unset.
-`%|""|%` <- function(x, y) if (nzchar(x %||% "")) x else y
