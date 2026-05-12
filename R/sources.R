@@ -758,6 +758,44 @@ eolas_list_otago <- function() .eolas_list_source("Otago Councils")
 
 
 # ---------------------------------------------------------------------------
+# PHARMAC
+# ---------------------------------------------------------------------------
+
+#' Fetch a PHARMAC dataset (NZ pharmaceutical subsidy schedule + hospital medicines)
+#'
+#' A named wrapper over [eolas_get()] for datasets from PHARMAC (Pharmaceutical
+#' Management Agency). Covers the monthly Pharmaceutical Schedule (community-
+#' funded medicines and subsidies) and the Hospital Medicines List (HML),
+#' including full longitudinal archives from 2006 and 2011 respectively.
+#'
+#' @inheritParams eolas_get_statsnz
+#' @return A `eolas_dataset` data frame.
+#' @details
+#'   Historical archive datasets (`pharmac_schedule_history`,
+#'   `pharmac_hml_history`) are append-mode; each month's snapshot is tagged
+#'   with a `time_frame` column (YYYY-MM format).
+#'   Source: \url{https://schedule.pharmac.govt.nz/}.
+#'   Licence: CC-BY 3.0 NZ (Crown).
+#' @export
+#' @examples
+#' \dontrun{
+#' eolas_key("your_key")
+#' df <- eolas_get_pharmac("pharmac_schedule")          # current month's funded medicines
+#' df <- eolas_get_pharmac("pharmac_schedule_history")  # 2006-present subsidy archive
+#' df <- eolas_get_pharmac("pharmac_hospital_medicines_list")  # current HML
+#' df <- eolas_get_pharmac("pharmac_hml_history")       # 2011-present HML archive
+#' }
+eolas_get_pharmac <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL) {
+  .eolas_get_source(name, "PHARMAC", start = start, end = end, limit = limit, as_sf = as_sf)
+}
+
+#' List all PHARMAC datasets available in eolas
+#' @return A data frame (tibble if available) of dataset metadata.
+#' @export
+eolas_list_pharmac <- function() .eolas_list_source("PHARMAC")
+
+
+# ---------------------------------------------------------------------------
 # Southland Councils
 # ---------------------------------------------------------------------------
 
