@@ -123,13 +123,72 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   # Convert to plain data.frame first — sf::st_as_sf doesn't reliably drop the
   # WKT column when called on a class-extended data frame (e.g. eolas_dataset).
   plain <- as.data.frame(df)
-  result <- sf::st_as_sf(plain, wkt = "geometry_wkt", crs = 4326)
-  # st_as_sf with wkt= converts the column in place, keeping its name. Rename
-  # to "geometry" for consistency with the rest of the sf ecosystem.
-  if (identical(attr(result, "sf_column"), "geometry_wkt")) {
-    names(result)[names(result) == "geometry_wkt"] <- "geometry"
-    attr(result, "sf_column") <- "geometry"
+
+  # Some NZ geospatial datasets legitimately contain rows with no geometry —
+  # e.g. non-digitised "oceanic" / "area outside region" meshblocks. A single
+  # such row makes sf::st_as_sf(wkt=) abort the whole conversion with
+  # "OGR: Unsupported geometry type". Parse defensively: blank/NA/sentinel
+  # values and any individually-unparseable WKT become EMPTY geometry, every
+  # attribute row is preserved, and the caller gets a warning with the count.
+  raw   <- as.character(plain[["geometry_wkt"]])
+  trimmed <- trimws(raw)
+  blank <- is.na(raw) | !nzchar(trimmed) |
+           toupper(trimmed) %in% c("NA", "NONE", "NULL", "NAN")
+
+  # Cheap shape screen: a WKT value must start with an OGC/ISO geometry
+  # keyword (optionally SRID-prefixed). Values that fail this are not WKT at
+  # all (sentinels, error text) — classify them without handing GDAL a
+  # garbage string, which both avoids GDAL's stderr chatter and is faster.
+  wkt_kw <- paste0(
+    "^(SRID=\\d+\\s*;\\s*)?(POINT|LINESTRING|POLYGON|MULTIPOINT|",
+    "MULTILINESTRING|MULTIPOLYGON|GEOMETRYCOLLECTION|CIRCULARSTRING|",
+    "COMPOUNDCURVE|CURVEPOLYGON|MULTICURVE|MULTISURFACE|",
+    "POLYHEDRALSURFACE|TIN|TRIANGLE)\\b")
+  not_wkt <- !blank & !grepl(wkt_kw, toupper(trimmed))
+
+  geoms <- vector("list", length(raw))
+  bad   <- not_wkt
+  idx   <- which(!blank & !not_wkt)
+
+  # Fast path: vectorised parse of the plausibly-WKT rows. Succeeds for the
+  # common case (only problem rows were blank/non-WKT), so we pay the per-row
+  # cost only when there is genuinely malformed WKT among them (e.g. a
+  # server-side truncated polygon).
+  parsed <- if (length(idx))
+    tryCatch(sf::st_as_sfc(raw[idx], crs = 4326), error = function(e) NULL)
+  else
+    sf::st_sfc(crs = 4326)
+
+  if (length(idx) && is.null(parsed)) {
+    for (j in seq_along(idx)) {
+      i <- idx[j]
+      g <- tryCatch(sf::st_as_sfc(raw[i], crs = 4326),
+                     error = function(e) NULL)
+      if (is.null(g)) bad[i] <- TRUE else geoms[[i]] <- g[[1]]
+    }
+  } else if (length(idx)) {
+    for (j in seq_along(idx)) geoms[[idx[j]]] <- parsed[[j]]
   }
+
+  empty_i <- which(blank | bad)
+  if (length(empty_i)) {
+    eg <- sf::st_geometrycollection()  # EMPTY; type-agnostic placeholder
+    for (i in empty_i) geoms[[i]] <- eg
+  }
+
+  n_blank <- sum(blank)
+  n_bad   <- sum(bad)
+  if (n_blank || n_bad) {
+    warning(sprintf(
+      paste0("eolas: %d of %d row(s) had no usable geometry ",
+             "(%d empty/null, %d unparseable WKT) and were returned with ",
+             "EMPTY geometry. Filter with !sf::st_is_empty(x) if needed."),
+      n_blank + n_bad, length(raw), n_blank, n_bad), call. = FALSE)
+  }
+
+  plain[["geometry_wkt"]] <- NULL
+  # Geometry column is named "geometry" for consistency with the sf ecosystem.
+  result <- sf::st_sf(plain, geometry = sf::st_sfc(geoms, crs = 4326))
   if (!is.null(vs_name))   attr(result, "eolas_name")   <- vs_name
   if (!is.null(vs_source)) attr(result, "eolas_source") <- vs_source
   result
