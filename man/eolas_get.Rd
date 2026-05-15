@@ -20,10 +20,20 @@ eolas_get(
 
 \item{end}{ISO date upper bound, e.g. \code{"2024-12-31"}. Optional.}
 
+\item{limit}{Max rows to return. Default \code{NULL} requests the full dataset
+(server enforces a 50,000-row cap on Free/Starter plans; Pro is unlimited).
+Pass an integer to request fewer rows.}
+
+\item{as_sf}{Convert geospatial datasets to an \code{sf} object (CRS = WGS84).
+\code{NULL} (default) auto-converts when the dataset has a \code{geometry_wkt}
+column AND the \code{sf} package is installed. \code{TRUE} forces conversion (errors
+if \code{sf} is missing). \code{FALSE} keeps the raw WKT string column.}
+
 \item{base_url}{Override the API base URL (useful for testing).}
 }
 \value{
-A \code{eolas_dataset} data frame with \code{date} coerced to \code{Date}.
+A \code{eolas_dataset} data frame with \code{date} coerced to \code{Date}, or an
+\code{sf} object when geometry is present and conversion is enabled.
 }
 \description{
 The generic workhorse — use \code{\link[=eolas_get_statsnz]{eolas_get_statsnz()}}, \code{\link[=eolas_get_oecd]{eolas_get_oecd()}} etc. for

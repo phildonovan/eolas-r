@@ -53,8 +53,16 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' @param name Dataset identifier, e.g. `"nz_cpi"`.
 #' @param start ISO date lower bound, e.g. `"2020-01-01"`. Optional.
 #' @param end   ISO date upper bound, e.g. `"2024-12-31"`. Optional.
+#' @param limit Max rows to return. Default `NULL` requests the full dataset
+#'   (server enforces a 50,000-row cap on Free/Starter plans; Pro is unlimited).
+#'   Pass an integer to request fewer rows.
+#' @param as_sf Convert geospatial datasets to an `sf` object (CRS = WGS84).
+#'   `NULL` (default) auto-converts when the dataset has a `geometry_wkt`
+#'   column AND the `sf` package is installed. `TRUE` forces conversion (errors
+#'   if `sf` is missing). `FALSE` keeps the raw WKT string column.
 #' @param base_url Override the API base URL (useful for testing).
-#' @return A `eolas_dataset` data frame with `date` coerced to `Date`.
+#' @return A `eolas_dataset` data frame with `date` coerced to `Date`, or an
+#'   `sf` object when geometry is present and conversion is enabled.
 #' @export
 #' @examples
 #' \dontrun{
