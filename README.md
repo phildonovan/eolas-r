@@ -23,7 +23,7 @@ df <- eolas_get("nz_cpi", start = "2020-01-01")
 
 # Source-tagged (sets the `eolas_source` attr for downstream display)
 df <- eolas_get_statsnz("nz_cpi")
-df <- eolas_get_oecd("nz_gdp_production_annual")
+df <- eolas_get_oecd("nz_gdp_growth")
 
 # Discovery
 all_datasets <- eolas_list()
@@ -51,14 +51,14 @@ Generate ready-to-run connector configs for popular data-pipeline tools (Meltano
 
 ```r
 # In-memory: inspect what the server would generate
-result <- eolas_integration("meltano", c("nz_cpi", "nz_gdp"))
+result <- eolas_integration("meltano", c("nz_cpi", "nz_gdp_growth"))
 names(result$files)            # "meltano.yml", "README.md", ".env.example"
 cat(result$files$meltano.yml)
 
 # Or write straight to a directory ready for `meltano install`
 eolas_integration(
   "meltano",
-  c("nz_cpi", "nz_gdp"),
+  c("nz_cpi", "nz_gdp_growth"),
   output_dir = "./my-pipeline"
 )
 ```
