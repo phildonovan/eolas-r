@@ -17,6 +17,7 @@ RoxygenNote: 7.3.3
 Imports:
     httr2 (>= 1.0.0)
 Suggests:
+    arrow (>= 14.0.0),
     tibble (>= 3.0.0),
     testthat (>= 3.0.0),
     httptest2,

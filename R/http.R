@@ -1,5 +1,19 @@
 EOLAS_BASE_URL <- "https://api.eolas.fyi"
 
+# Per-session runtime memo (R has no client object):
+#   $arrow_supported  NULL = unknown (try it), TRUE = server speaks Arrow,
+#                      FALSE = server ignored format=arrow (old; skip retry)
+#   $arrow_nagged      TRUE once we've told a no-arrow user about the speedup
+.eolas_runtime <- new.env(parent = emptyenv())
+
+.eolas_user_agent <- function() {
+  ver <- tryCatch(as.character(utils::packageVersion("eolas")),
+                  error = function(e) "1.0.0")
+  # Explicit UA: good API-client hygiene + insulation against the Cloudflare
+  # edge tightening bot rules (raw default UAs can be 403'd; custom always OK).
+  paste0("eolas-r/", ver, " (r; +https://eolas.fyi)")
+}
+
 eolas_http_perform <- function(req) {
   httr2::req_perform(req)
 }
@@ -29,6 +43,7 @@ eolas_http_get <- function(path, ..., base_url = EOLAS_BASE_URL) {
   url <- paste0(base_url, path)
   req <- httr2::request(url) |>
     httr2::req_headers("X-API-Key" = key) |>
+    httr2::req_user_agent(.eolas_user_agent()) |>
     httr2::req_url_query(...) |>
     httr2::req_error(is_error = \(r) FALSE)
   resp <- eolas_http_perform(req)
