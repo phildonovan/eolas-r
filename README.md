@@ -1,6 +1,8 @@
 # eolas <img src="https://img.shields.io/badge/R-package-blue" align="right"/>
 
-R client for the [eolas.fyi](https://eolas.fyi) statistical data API — 700+ datasets across NZ, Australia, OECD, and more, returned as tidy data frames (or `sf` objects for geospatial layers).
+R client for the [eolas.fyi](https://eolas.fyi) statistical data API — 1,400+ official New Zealand statistical & geospatial datasets, plus OECD data for international comparisons, returned as tidy data frames (or `sf` objects for geospatial layers).
+
+_Coverage is New Zealand + OECD today. Australian sources are on the roadmap — not yet available; OECD data already includes Australia (and other OECD members) for cross-country comparisons._
 
 ## Installation
 
@@ -33,13 +35,15 @@ meta         <- eolas_info("nz_cpi")
 ggplot(df, aes(date, value)) + geom_line()
 ```
 
-Get an API key at <https://eolas.fyi/signup>. Free plan is 10 requests/month; Starter is 100; Pro is unlimited.
+Get an API key at <https://eolas.fyi/signup>. Free plan is 10 requests/month; Pro ($49/month) is unlimited.
 
 ## Source-specific helpers
 
 One `eolas_get_*()` and `eolas_list_*()` per source:
 
-`statsnz`, `statsnz_geo`, `oecd`, `rbnz`, `treasury`, `linz`, `mbie`, `nzta`, `msd`, `police`, `acc`, `edcounts`, `worksafe`.
+Core: `statsnz`, `statsnz_geo`, `oecd`, `rbnz`, `treasury`, `linz`, `lris`, `mbie`, `nzta`, `msd`, `police`, `acc`, `edcounts`, `worksafe`, `doc`, `geonet`, `pharmac`, `eeca`, `immigration`, `charities`. Auckland: `akl_council`, `akl_transport`. Regional-council bundles: `northland`, `bay_of_plenty`, `hawkes_bay`, `taranaki`, `manawatu_whanganui`, `wellington`, `top_of_south`, `west_coast`, `otago`, `southland`, `napier_whanganui`, `colab_waikato`, `ecan_canterbury`.
+
+Run `eolas_list()` for the full live catalogue — the set above is generated and grows; `eolas_list()` is always authoritative.
 
 ## Integrations (Enterprise plan)
 
@@ -70,6 +74,28 @@ install.packages("sf")
 gdf <- eolas_get("nz_addresses")          # sf object
 df  <- eolas_get("nz_addresses", as_sf = FALSE)  # plain df, WKT preserved
 ```
+
+## Faster transport (Arrow)
+
+`eolas_get()` (and every `eolas_get_*()`) automatically uses Apache Arrow as
+the wire format when the `arrow` package is installed — typically **5–10×
+faster end-to-end** on large pulls, with no code change. It falls back to
+JSON transparently if `arrow` isn't installed or the server doesn't support
+it (you'll get a one-time hint about the speed-up).
+
+```r
+install.packages("arrow")          # one-off; everything else is unchanged
+df <- eolas_get("nz_addresses")    # now streamed via Arrow, same data frame
+```
+
+For a columnar file straight from the REST API:
+
+```bash
+curl -H "X-API-Key: $EOLAS_API_KEY" \
+  "https://api.eolas.fyi/v1/datasets/nz_cpi/data?format=parquet" -o nz_cpi.parquet
+```
+
+See the [R reference](https://docs.eolas.fyi/r/reference/) for the format benchmark.
 
 ## License
 
