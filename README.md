@@ -97,6 +97,26 @@ curl -H "X-API-Key: $EOLAS_API_KEY" \
 
 See the [R reference](https://docs.eolas.fyi/r/reference/) for the format benchmark.
 
+## Bulk downloads
+
+For whole-dataset downloads (Parquet, gzipped CSV, or GeoParquet — no row caps):
+
+```r
+eolas_download_bulk("treasury_fiscal_spending", path = "t.parquet")
+# Pro/Enterprise → current Iceberg snapshot; Free → latest monthly snapshot.
+# Licence-restricted datasets (OECD) raise a 403 error with the licence reason.
+```
+
+To keep a local file in sync with upstream refreshes without re-downloading unchanged data, use `eolas_sync_bulk()` — a cheap HEAD request checks the server's snapshot id and only transfers data if it changed:
+
+```r
+r <- eolas_sync_bulk("nz_cpi", path = "nz_cpi.parquet")
+# r$status: "downloaded" | "unchanged" | "updated"
+# r$bytes_downloaded == 0 when unchanged
+```
+
+Full docs: [docs.eolas.fyi/bulk-downloads/](https://docs.eolas.fyi/bulk-downloads/).
+
 ## License
 
 MIT
