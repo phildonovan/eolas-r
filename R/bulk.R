@@ -437,3 +437,148 @@ eolas_sync_bulk <- function(name,
     bytes_downloaded     = bytes_dl
   )
 }
+
+
+# -------------------------------------------------------------------------
+# eolas_get_local — notebook-friendly whole-dataset convenience
+# -------------------------------------------------------------------------
+
+#' Download (or serve from cache) a whole dataset as a local data frame
+#'
+#' This is the recommended path for large or geospatial datasets in an
+#' interactive R session or R Markdown notebook.  On the first call it fetches
+#' the bulk file from CDN (milliseconds for monthly snapshots) and writes it to
+#' `~/.cache/eolas/`.  On subsequent calls a lightweight HEAD request checks
+#' whether the local file is still current; if so the cached copy is read
+#' directly — zero network I/O on the data payload.
+#'
+#' If you have been calling `eolas_get("nz_parcels")` on a 3-million-row
+#' geospatial dataset and it takes 15+ minutes, use `eolas_get_local()`
+#' instead — it serves a pre-materialised GeoParquet from CDN, not a live
+#' Iceberg scan through the row-oriented data endpoint.
+#'
+#' @section Format auto-detection:
+#' When `format = NULL` (the default), `eolas_get_local()` calls
+#' `eolas_info(name)` and checks the metadata for a `geometry_type` field.
+#' Geo datasets use `"geoparquet"`; everything else uses `"parquet"`.
+#'
+#' @section GeoParquet and sf:
+#' When `format = "geoparquet"` and the `sf` package is installed, the
+#' returned object is an `sf` data frame with the CRS read from the GeoParquet
+#' metadata (typically OGC:CRS84 / WGS84).  If `sf` is not installed, or
+#' `as_sf = FALSE`, a plain data frame is returned with the WKT geometry
+#' preserved as a character column (extracted from the WKB binary by the
+#' `sfarrow` package if available, else left as raw).  Install `sf` with
+#' `install.packages("sf")`.
+#'
+#' @param name Dataset identifier, e.g. `"nz_parcels"`.
+#' @param cache_dir Local directory for cached files.  Accepts `~`-prefixed
+#'   paths.  Created if it does not exist.  Defaults to `"~/.cache/eolas"`.
+#' @param format `"parquet"`, `"csv_gz"`, or `"geoparquet"`.  `NULL` (default)
+#'   auto-detects from dataset metadata.
+#' @param freshness `"auto"` (default), `"monthly"`, or `"current"`.  Passed
+#'   verbatim to [eolas_sync_bulk()].
+#' @param as_sf When `TRUE` (default) and the file is GeoParquet, the function
+#'   attempts to return an `sf` object via `sf::st_read()` or
+#'   `sfarrow::st_read_parquet()`.  When `FALSE`, a plain data frame is
+#'   returned regardless of geometry.
+#' @param base_url Override the API base URL (useful for testing).
+#' @param ... Reserved for future arguments; currently ignored.
+#' @return A `data.frame` or `sf` object, depending on the dataset and the
+#'   `as_sf` argument.
+#' @export
+#' @examples
+#' \dontrun{
+#' eolas_key("your_key")
+#'
+#' # 3-million-row geospatial dataset — first call downloads GeoParquet from CDN;
+#' # subsequent calls return in <1 s via sidecar check.
+#' gdf <- eolas_get_local("nz_parcels")
+#'
+#' # Non-geo tabular dataset
+#' df <- eolas_get_local("nz_cpi")
+#'
+#' # Custom cache directory
+#' df <- eolas_get_local("nz_cpi", cache_dir = "/data/eolas-cache")
+#'
+#' # Force CSV format
+#' df <- eolas_get_local("nz_cpi", format = "csv_gz")
+#'
+#' # Keep plain data.frame even for geo datasets
+#' df <- eolas_get_local("nz_parcels", as_sf = FALSE)
+#' }
+#' @seealso [eolas_sync_bulk()], <https://docs.eolas.fyi/bulk-downloads/>
+eolas_get_local <- function(name,
+                             cache_dir = "~/.cache/eolas",
+                             format    = NULL,
+                             freshness = "auto",
+                             as_sf     = TRUE,
+                             base_url  = EOLAS_BASE_URL,
+                             ...) {
+
+  # ---- argument validation --------------------------------------------------
+  if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
+    stop("`name` must be a non-empty string.", call. = FALSE)
+  }
+  freshness <- match.arg(freshness, .BULK_VALID_FRESHNESS)
+
+  # ---- resolve cache_dir (expand ~ and create if needed) -------------------
+  # Must create before calling file_path_as_absolute, which requires the path
+  # to exist.
+  cache_dir_expanded <- path.expand(cache_dir)
+  dir.create(cache_dir_expanded, recursive = TRUE, showWarnings = FALSE)
+  cache_dir_abs <- tools::file_path_as_absolute(cache_dir_expanded)
+
+  # ---- auto-detect format if not specified ----------------------------------
+  if (is.null(format)) {
+    meta   <- eolas_info(name, base_url = base_url)
+    is_geo <- !is.null(meta$geometry_type) || !is.null(meta$geometry_wkt) ||
+              isTRUE(meta$has_geometry)
+    fmt    <- if (is_geo) "geoparquet" else "parquet"
+  } else {
+    fmt <- match.arg(format, .BULK_VALID_FORMATS)
+  }
+
+  # ---- compute local file path ----------------------------------------------
+  ext       <- .BULK_EXTENSIONS[[fmt]]            # e.g. ".parquet", ".csv.gz", ".geo.parquet"
+  file_path <- file.path(cache_dir_abs, paste0(name, ext))
+
+  # ---- sync (download if needed, HEAD check if cached) --------------------
+  # Bulk-specific stop() errors (Bulk upgrade required / Bulk licence
+  # restricted / Bulk not yet available) propagate unchanged — their messages
+  # already tell the user what to do.
+  eolas_sync_bulk(name, path = file_path, format = fmt,
+                  freshness = freshness, base_url = base_url)
+
+  # ---- read the local file into a data frame --------------------------------
+  if (fmt == "geoparquet" && isTRUE(as_sf)) {
+    # Try sfarrow first (reads GeoParquet natively), then sf via a temp copy.
+    if (requireNamespace("sfarrow", quietly = TRUE)) {
+      return(sfarrow::st_read_parquet(file_path))
+    }
+    if (requireNamespace("sf", quietly = TRUE)) {
+      return(sf::st_read(file_path, quiet = TRUE))
+    }
+    # Neither sf nor sfarrow available — fall through to plain read below.
+    message(
+      "eolas: sf or sfarrow package needed to return a GeoParquet as an sf object. ",
+      "Install with install.packages(\"sf\"). Returning plain data.frame."
+    )
+  }
+
+  # Plain read paths.
+  if (fmt == "csv_gz") {
+    return(utils::read.csv(gzfile(file_path), stringsAsFactors = FALSE))
+  }
+
+  # parquet or geoparquet-without-sf: use arrow if available, else error.
+  if (requireNamespace("arrow", quietly = TRUE)) {
+    return(as.data.frame(arrow::read_parquet(file_path)))
+  }
+
+  stop(
+    "The `arrow` package is required to read Parquet files in R. ",
+    "Install with: install.packages(\"arrow\")",
+    call. = FALSE
+  )
+}

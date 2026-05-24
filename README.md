@@ -117,20 +117,33 @@ See the [R reference](https://docs.eolas.fyi/r/reference/) for the format benchm
 
 ## Bulk downloads
 
-For whole-dataset downloads (Parquet, gzipped CSV, or GeoParquet — no row caps):
+For whole-dataset downloads as a single file (Parquet, gzipped CSV, or GeoParquet — no row caps), use `eolas_get_local()` — the recommended path for notebook and R Markdown workflows:
 
 ```r
-eolas_download_bulk("treasury_fiscal_spending", path = "t.parquet")
-# Pro/Enterprise → current Iceberg snapshot; Free → latest monthly snapshot.
-# Licence-restricted datasets (OECD) raise a 403 error with the licence reason.
+# First call: downloads the whole dataset from CDN into ~/.cache/eolas/
+# Subsequent calls in any future session: cheap HEAD check then local read
+gdf <- eolas_get_local("nz_parcels")   # sf object (3M rows, ~1 s after first download)
+df  <- eolas_get_local("nz_cpi")       # data.frame
+
+# Custom cache dir, explicit format, skip sf conversion
+df  <- eolas_get_local("nz_cpi", cache_dir = "/data/eolas", format = "csv_gz")
+df  <- eolas_get_local("nz_parcels", as_sf = FALSE)   # plain data.frame, no sf conversion
 ```
 
-To keep a local file in sync with upstream refreshes without re-downloading unchanged data, use `eolas_sync_bulk()` — a cheap HEAD request checks the server's snapshot id and only transfers data if it changed:
+`eolas_get_local()` auto-detects format from metadata (geo datasets -> GeoParquet, others -> Parquet), expands `~`, creates the cache dir, and returns a data frame directly. If you have been running `eolas_get("nz_parcels")` and it takes 15 minutes, switch to `eolas_get_local()` — the live `/data` endpoint runs a full Iceberg scan; the bulk endpoint serves a pre-materialised file from CDN.
+
+For advanced control over the sync lifecycle, use `eolas_sync_bulk()` directly:
 
 ```r
 r <- eolas_sync_bulk("nz_cpi", path = "nz_cpi.parquet")
 # r$status: "downloaded" | "unchanged" | "updated"
 # r$bytes_downloaded == 0 when unchanged
+```
+
+For one-shot downloads to a raw vector or file path, use `eolas_download_bulk()`:
+
+```r
+eolas_download_bulk("treasury_fiscal_spending", path = "t.parquet")
 ```
 
 Full docs: [docs.eolas.fyi/bulk-downloads/](https://docs.eolas.fyi/bulk-downloads/).

@@ -25,5 +25,6 @@ Suggests:
     httptest2,
     withr,
     sf (>= 1.0),
+    sfarrow,
     jsonlite
 Config/testthat/edition: 3
