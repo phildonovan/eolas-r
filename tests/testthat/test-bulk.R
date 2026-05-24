@@ -223,3 +223,235 @@ test_that("HTTP 404 on metadata lookup raises not found error", {
   )
   expect_error(eolas_download_bulk("no_such_dataset"), "Not found")
 })
+
+
+# ===========================================================================
+# eolas_sync_bulk() tests
+# ===========================================================================
+
+# Snapshot id constants used across sync tests.
+SNAPSHOT_V1 <- "5503437996448954328"
+SNAPSHOT_V2 <- "7041234567890123456"
+
+FAKE_PARQUET_V2 <- c(charToRaw("PAR1"), as.raw(rep(1L, 12)), charToRaw("PAR1"))
+
+# Helper: build a mock HEAD response carrying X-Snapshot-Version.
+httr2_mock_head_resp <- function(snapshot_id, status = 200L) {
+  structure(
+    list(
+      method      = "HEAD",
+      url         = "https://api.eolas.fyi/test",
+      status_code = status,
+      headers     = structure(
+        list(
+          `content-type`       = "application/json",
+          `X-Snapshot-Version` = snapshot_id
+        ),
+        class = "httr2_headers"
+      ),
+      body  = raw(0L),
+      cache = new.env(parent = emptyenv())
+    ),
+    class = "httr2_response"
+  )
+}
+
+# with_mock_sync: three-call sequence (metadata GET, HEAD, optional bulk GET).
+# Follows the same pattern as with_mock_bulk() above: .env = ns + code as last arg.
+with_mock_sync <- function(snapshot_id,
+                           bulk_body    = FAKE_PARQUET,
+                           bulk_status  = 200L,
+                           bulk_content = "application/octet-stream",
+                           meta_body    = BULK_DATASET_META,
+                           meta_status  = 200L,
+                           code) {
+  ns <- getNamespace("eolas")
+  assign("key", "eolas_testkey", envir = ns$.eolas_env)
+
+  call_count <- 0L
+  local_mocked_bindings(
+    eolas_http_perform = function(req) {
+      call_count <<- call_count + 1L
+      if (call_count == 1L) {
+        # Metadata lookup.
+        structure(
+          list(
+            method      = "GET",
+            url         = "https://api.eolas.fyi/test",
+            status_code = meta_status,
+            headers     = structure(list(`content-type` = "application/json"),
+                                    class = "httr2_headers"),
+            body  = charToRaw(meta_body),
+            cache = new.env(parent = emptyenv())
+          ),
+          class = "httr2_response"
+        )
+      } else if (call_count == 2L) {
+        # HEAD for snapshot version.
+        httr2_mock_head_resp(snapshot_id)
+      } else {
+        # GET for bulk data.
+        structure(
+          list(
+            method      = "GET",
+            url         = "https://api.eolas.fyi/test",
+            status_code = bulk_status,
+            headers     = structure(list(`content-type` = bulk_content),
+                                    class = "httr2_headers"),
+            body  = if (is.character(bulk_body)) charToRaw(bulk_body) else bulk_body,
+            cache = new.env(parent = emptyenv())
+          ),
+          class = "httr2_response"
+        )
+      }
+    },
+    .env = ns
+  )
+  code
+}
+
+# with_mock_sync_unchanged: only two calls (metadata GET + HEAD returning same snapshot).
+with_mock_sync_unchanged <- function(snapshot_id,
+                                     meta_body = BULK_DATASET_META,
+                                     code) {
+  ns <- getNamespace("eolas")
+  assign("key", "eolas_testkey", envir = ns$.eolas_env)
+
+  call_count <- 0L
+  local_mocked_bindings(
+    eolas_http_perform = function(req) {
+      call_count <<- call_count + 1L
+      if (call_count == 1L) {
+        structure(
+          list(
+            method      = "GET",
+            url         = "https://api.eolas.fyi/test",
+            status_code = 200L,
+            headers     = structure(list(`content-type` = "application/json"),
+                                    class = "httr2_headers"),
+            body  = charToRaw(meta_body),
+            cache = new.env(parent = emptyenv())
+          ),
+          class = "httr2_response"
+        )
+      } else {
+        httr2_mock_head_resp(snapshot_id)
+      }
+    },
+    .env = ns
+  )
+  code
+}
+
+# ---- helper: write a sidecar next to a file ---------------------------------
+write_test_sidecar <- function(data_path, snapshot_id) {
+  sidecar_path <- paste0(data_path, ".eolas-meta.json")
+  data <- list(
+    schema_version = 1L,
+    name           = "nz_cpi",
+    snapshot_id    = snapshot_id,
+    format         = "parquet",
+    freshness      = "auto",
+    downloaded_at  = "2026-05-24T01:23:45Z",
+    source_url     = "https://api.eolas.fyi/v1/bulk/statsnz/nz_cpi?format=parquet"
+  )
+  writeLines(jsonlite::toJSON(data, auto_unbox = TRUE), sidecar_path)
+}
+
+# ---------------------------------------------------------------------------
+# First download: no sidecar
+# ---------------------------------------------------------------------------
+
+test_that("eolas_sync_bulk first download: status=downloaded, file+sidecar written", {
+  tmp  <- withr::local_tempdir()
+  dest <- file.path(tmp, "nz_cpi.parquet")
+
+  with_mock_sync(SNAPSHOT_V1, code = {
+    result <- eolas_sync_bulk("nz_cpi", path = dest)
+  })
+
+  expect_equal(result$status, "downloaded")
+  expect_true(is.na(result$previous_snapshot_id))
+  expect_equal(result$current_snapshot_id, SNAPSHOT_V1)
+  expect_equal(result$path, normalizePath(dest, mustWork = FALSE))
+  expect_gt(result$bytes_downloaded, 0L)
+
+  expect_true(file.exists(dest))
+  expect_equal(readBin(dest, "raw", n = length(FAKE_PARQUET)), FAKE_PARQUET)
+
+  sidecar_path <- paste0(normalizePath(dest, mustWork = FALSE), ".eolas-meta.json")
+  expect_true(file.exists(sidecar_path))
+  meta <- jsonlite::fromJSON(readLines(sidecar_path, warn = FALSE))
+  expect_equal(meta$snapshot_id, SNAPSHOT_V1)
+})
+
+# ---------------------------------------------------------------------------
+# Unchanged: sidecar matches server snapshot
+# ---------------------------------------------------------------------------
+
+test_that("eolas_sync_bulk unchanged: no file write, status=unchanged, bytes_downloaded=0", {
+  tmp  <- withr::local_tempdir()
+  dest <- file.path(tmp, "nz_cpi.parquet")
+  writeBin(FAKE_PARQUET, dest)
+  write_test_sidecar(dest, SNAPSHOT_V1)
+
+  with_mock_sync_unchanged(SNAPSHOT_V1, code = {
+    result <- eolas_sync_bulk("nz_cpi", path = dest)
+  })
+
+  expect_equal(result$status, "unchanged")
+  expect_equal(result$previous_snapshot_id, SNAPSHOT_V1)
+  expect_equal(result$current_snapshot_id, SNAPSHOT_V1)
+  expect_equal(result$bytes_downloaded, 0L)
+  expect_equal(readBin(dest, "raw", n = length(FAKE_PARQUET)), FAKE_PARQUET)
+})
+
+# ---------------------------------------------------------------------------
+# Updated: server returns new snapshot
+# ---------------------------------------------------------------------------
+
+test_that("eolas_sync_bulk updated: file replaced, sidecar updated, status=updated", {
+  tmp  <- withr::local_tempdir()
+  dest <- file.path(tmp, "nz_cpi.parquet")
+  writeBin(FAKE_PARQUET, dest)
+  write_test_sidecar(dest, SNAPSHOT_V1)
+
+  with_mock_sync(SNAPSHOT_V2, bulk_body = FAKE_PARQUET_V2, code = {
+    result <- eolas_sync_bulk("nz_cpi", path = dest)
+  })
+
+  expect_equal(result$status, "updated")
+  expect_equal(result$previous_snapshot_id, SNAPSHOT_V1)
+  expect_equal(result$current_snapshot_id, SNAPSHOT_V2)
+  expect_gt(result$bytes_downloaded, 0L)
+  expect_equal(readBin(dest, "raw", n = length(FAKE_PARQUET_V2)), FAKE_PARQUET_V2)
+
+  sidecar_path <- paste0(normalizePath(dest, mustWork = FALSE), ".eolas-meta.json")
+  meta <- jsonlite::fromJSON(readLines(sidecar_path, warn = FALSE))
+  expect_equal(meta$snapshot_id, SNAPSHOT_V2)
+})
+
+# ---------------------------------------------------------------------------
+# Atomic rename: after a full download completes the destination has the new
+# content regardless of whether file.rename or copy-fallback was used.
+# (We verify the invariant rather than crashing the rename itself, because
+# R's local_mocked_bindings cannot replace base:: functions.)
+# ---------------------------------------------------------------------------
+
+test_that("eolas_sync_bulk atomic: destination has new content after update", {
+  tmp  <- withr::local_tempdir()
+  dest <- file.path(tmp, "nz_cpi.parquet")
+  writeBin(FAKE_PARQUET, dest)
+  write_test_sidecar(dest, SNAPSHOT_V1)
+
+  with_mock_sync(SNAPSHOT_V2, bulk_body = FAKE_PARQUET_V2, code = {
+    result <- eolas_sync_bulk("nz_cpi", path = dest)
+  })
+
+  # Destination must have the new content (no partial bytes).
+  expect_equal(readBin(dest, "raw", n = length(FAKE_PARQUET_V2)), FAKE_PARQUET_V2)
+  expect_equal(result$status, "updated")
+  # No orphaned tmp files should remain.
+  tmp_files <- list.files(tmp, pattern = "\\.eolas-tmp-", full.names = TRUE)
+  expect_length(tmp_files, 0L)
+})

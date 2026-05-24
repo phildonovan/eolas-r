@@ -16,6 +16,9 @@
   geoparquet = ".geo.parquet"
 )
 
+# Sidecar schema version — bump if the JSON structure changes incompatibly.
+.SIDECAR_SCHEMA_VERSION <- 1L
+
 
 #' Download a complete dataset as a single file
 #'
@@ -184,4 +187,253 @@ eolas_download_bulk <- function(name,
   dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
   writeBin(raw_bytes, out_path)
   invisible(out_path)
+}
+
+
+# -------------------------------------------------------------------------
+# Internal helpers for eolas_sync_bulk
+# -------------------------------------------------------------------------
+
+.read_sidecar <- function(sidecar_path) {
+  tryCatch(
+    jsonlite::fromJSON(readLines(sidecar_path, warn = FALSE), simplifyVector = TRUE),
+    error = function(e) NULL
+  )
+}
+
+.write_sidecar <- function(sidecar_path, name, snapshot_id, fmt, freshness, source_url) {
+  data <- list(
+    schema_version = .SIDECAR_SCHEMA_VERSION,
+    name           = name,
+    snapshot_id    = snapshot_id,
+    format         = fmt,
+    freshness      = freshness,
+    downloaded_at  = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
+    source_url     = source_url
+  )
+  writeLines(jsonlite::toJSON(data, auto_unbox = TRUE, pretty = TRUE), sidecar_path)
+}
+
+# HEAD the bulk endpoint to read X-Snapshot-Version without downloading data.
+.head_snapshot_version <- function(url, query, key) {
+  req <- httr2::request(url) |>
+    httr2::req_headers("X-API-Key" = key) |>
+    httr2::req_user_agent(.eolas_user_agent()) |>
+    httr2::req_url_query(!!!query) |>
+    httr2::req_method("HEAD") |>
+    httr2::req_error(is_error = \(r) FALSE)
+  resp <- eolas_http_perform(req)
+  # Bulk refusal codes on HEAD must still propagate.
+  status <- httr2::resp_status(resp)
+  if (status == 402L) {
+    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
+    detail <- body$detail %||% "Fresh bulk downloads are a Pro feature."
+    stop("Bulk upgrade required: ", detail, call. = FALSE)
+  }
+  if (status == 403L) {
+    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
+    detail <- body$detail %||% ""
+    if (nzchar(detail) && grepl("licence", detail, ignore.case = TRUE)) {
+      stop("Bulk licence restricted: ", detail, call. = FALSE)
+    }
+    eolas_check_status(resp)
+  }
+  if (status == 503L) {
+    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
+    detail <- body$detail %||% "Monthly bulk snapshots are still rolling out."
+    stop("Bulk not yet available: ", detail, call. = FALSE)
+  }
+  if (status != 200L) {
+    eolas_check_status(resp)
+  }
+  # Return the X-Snapshot-Version header value (empty string if absent).
+  headers <- httr2::resp_headers(resp)
+  headers[["X-Snapshot-Version"]] %||% ""
+}
+
+
+#' Incrementally sync a bulk dataset file
+#'
+#' Checks whether the locally-cached file is still current by issuing a
+#' lightweight HEAD request and reading the `X-Snapshot-Version` response
+#' header.  If the snapshot id matches the sidecar, the function returns
+#' immediately with `status = "unchanged"` and no data I/O.  Otherwise it
+#' downloads the new snapshot, replaces the local file **atomically** (via a
+#' temp file + `file.rename()`), and updates the sidecar.
+#'
+#' @section Sidecar:
+#' A JSON file `<path>.eolas-meta.json` is written next to the data file.
+#' It stores the snapshot id, download timestamp, format, and source URL
+#' and is read on the next call to perform the no-op check cheaply.
+#'
+#' @section Atomic replacement:
+#' The new file is downloaded to `<path>.eolas-tmp-<rand>` and then renamed
+#' over the original with `file.rename()`.  On most POSIX systems this is an
+#' atomic inode swap; on Windows it uses `MoveFileExW` with
+#' `MOVEFILE_REPLACE_EXISTING`.  Readers with the file open will see either
+#' the old or the new content, never a partial write.
+#'
+#' @param name Dataset identifier, e.g. `"nz_cpi"`.
+#' @param path **Required.** File path where the data should live.  The
+#'   sidecar is written at `paste0(path, ".eolas-meta.json")`.
+#'   Parent directories are created automatically.
+#' @param format `"parquet"` (default), `"csv_gz"`, or `"geoparquet"`.
+#' @param freshness `"auto"` (default), `"monthly"`, or `"current"`.
+#' @param base_url Override the API base URL (useful for testing).
+#' @param ... Reserved; currently ignored.
+#' @return A named list with the same fields as Python's `SyncResult`:
+#' \describe{
+#'   \item{`status`}{`"downloaded"`, `"updated"`, or `"unchanged"`}
+#'   \item{`previous_snapshot_id`}{Snapshot id from the sidecar, or `NA` if none}
+#'   \item{`current_snapshot_id`}{Snapshot id from the server}
+#'   \item{`path`}{Normalised path to the data file}
+#'   \item{`bytes_downloaded`}{Bytes written (0 when unchanged)}
+#' }
+#' @export
+#' @examples
+#' \dontrun{
+#' eolas_key("your_key")
+#'
+#' # First call: full download
+#' r <- eolas_sync_bulk("nz_cpi", path = "nz_cpi.parquet")
+#' r$status           # "downloaded"
+#' r$bytes_downloaded # e.g. 2100000
+#'
+#' # Second call (same snapshot): no network I/O on the data file
+#' r <- eolas_sync_bulk("nz_cpi", path = "nz_cpi.parquet")
+#' r$status           # "unchanged"
+#' r$bytes_downloaded # 0
+#'
+#' # Poll for updates in a long-running script
+#' repeat {
+#'   r <- eolas_sync_bulk("nz_cpi", path = "nz_cpi.parquet")
+#'   if (r$status != "unchanged") message("Updated to snapshot ", r$current_snapshot_id)
+#'   Sys.sleep(3600)
+#' }
+#' }
+#' @seealso \code{\link{eolas_download_bulk}}, <https://docs.eolas.fyi/bulk-downloads/>
+eolas_sync_bulk <- function(name,
+                            path,
+                            format    = "parquet",
+                            freshness = "auto",
+                            base_url  = EOLAS_BASE_URL,
+                            ...) {
+
+  # ---- argument validation --------------------------------------------------
+  if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
+    stop("`name` must be a non-empty string.", call. = FALSE)
+  }
+  if (missing(path) || is.null(path)) {
+    stop("`path` is required for eolas_sync_bulk().", call. = FALSE)
+  }
+  format    <- match.arg(format,    .BULK_VALID_FORMATS)
+  freshness <- match.arg(freshness, .BULK_VALID_FRESHNESS)
+
+  out_path    <- normalizePath(path, mustWork = FALSE)
+  sidecar_path <- paste0(out_path, ".eolas-meta.json")
+
+  # ---- read local sidecar ---------------------------------------------------
+  prev <- if (file.exists(sidecar_path)) .read_sidecar(sidecar_path) else NULL
+
+  # ---- resolve name → namespace + table ------------------------------------
+  meta      <- eolas_info(name, base_url = base_url)
+  namespace <- meta$namespace %||% ""
+  table     <- meta$table %||% meta$name %||% name
+
+  if (!nzchar(namespace)) {
+    stop(
+      "Dataset ", sQuote(name), " metadata did not include a namespace field. ",
+      "Cannot construct bulk URL.",
+      call. = FALSE
+    )
+  }
+
+  # ---- build query params ---------------------------------------------------
+  query <- list(format = format)
+  if (freshness != "auto") query$freshness <- freshness
+
+  # ---- HEAD to get X-Snapshot-Version cheaply -------------------------------
+  key <- eolas_get_key_internal()
+  bulk_url <- paste0(base_url, "/v1/bulk/", namespace, "/", table)
+  current_sid <- .head_snapshot_version(bulk_url, query, key)
+
+  # ---- no-op fast path ------------------------------------------------------
+  prev_sid <- if (!is.null(prev)) prev$snapshot_id %||% NA_character_ else NA_character_
+  if (!is.na(prev_sid) &&
+      identical(prev_sid, current_sid) &&
+      file.exists(out_path)) {
+    return(list(
+      status               = "unchanged",
+      previous_snapshot_id = prev_sid,
+      current_snapshot_id  = current_sid,
+      path                 = out_path,
+      bytes_downloaded     = 0L
+    ))
+  }
+
+  # ---- download (atomic replace) --------------------------------------------
+  dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
+
+  rand_hex  <- paste0(sample(c(0:9, letters[1:6]), 8, replace = TRUE), collapse = "")
+  tmp_path  <- paste0(out_path, ".eolas-tmp-", rand_hex)
+
+  req <- httr2::request(bulk_url) |>
+    httr2::req_headers("X-API-Key" = key) |>
+    httr2::req_user_agent(.eolas_user_agent()) |>
+    httr2::req_url_query(!!!query) |>
+    httr2::req_error(is_error = \(r) FALSE)
+
+  resp <- eolas_http_perform(req)
+
+  # ---- bulk-specific status handling (mirrors eolas_download_bulk) ----------
+  status <- httr2::resp_status(resp)
+
+  if (status == 402L) {
+    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
+    detail <- body$detail %||% "Fresh bulk downloads are a Pro feature."
+    stop("Bulk upgrade required: ", detail, call. = FALSE)
+  }
+  if (status == 403L) {
+    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
+    detail <- body$detail %||% ""
+    if (nzchar(detail) && grepl("licence", detail, ignore.case = TRUE)) {
+      stop("Bulk licence restricted: ", detail, call. = FALSE)
+    }
+    eolas_check_status(resp)
+  }
+  if (status == 503L) {
+    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
+    detail <- body$detail %||% "Monthly bulk snapshots are still rolling out."
+    stop("Bulk not yet available: ", detail, call. = FALSE)
+  }
+  if (status != 200L) {
+    eolas_check_status(resp)
+  }
+
+  raw_bytes   <- httr2::resp_body_raw(resp)
+  bytes_dl    <- length(raw_bytes)
+
+  # Write to tmp, then atomically rename onto the destination.
+  writeBin(raw_bytes, tmp_path)
+  ok <- file.rename(tmp_path, out_path)
+  if (!ok) {
+    # file.rename can fail across filesystems — fall back to copy + unlink.
+    file.copy(tmp_path, out_path, overwrite = TRUE)
+    unlink(tmp_path)
+  }
+
+  # ---- write sidecar --------------------------------------------------------
+  source_url <- paste0(
+    bulk_url, "?format=", format,
+    if (freshness != "auto") paste0("&freshness=", freshness) else ""
+  )
+  .write_sidecar(sidecar_path, name, current_sid, format, freshness, source_url)
+
+  list(
+    status               = if (is.null(prev) || is.na(prev_sid)) "downloaded" else "updated",
+    previous_snapshot_id = prev_sid,
+    current_snapshot_id  = current_sid,
+    path                 = out_path,
+    bytes_downloaded     = bytes_dl
+  )
 }
