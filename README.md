@@ -10,13 +10,31 @@ _Coverage is New Zealand + OECD today. Australian sources are on the roadmap —
 remotes::install_github("phildonovan/eolas-r")
 ```
 
+## Save your API key (workstation)
+
+Save your key to the OS keyring once and never paste it again:
+
+```r
+install.packages("keyring")   # one-off; on Linux: sudo apt install libsecret-1-dev first
+eolas_key_save()              # interactive masked prompt
+```
+
+After that, `eolas_get_*()` finds the key automatically in every future R session — no `eolas_key()` call needed. The same OS keyring slot (`service = "eolas"`) is read by the Python `eolas-data` client, so a key saved from R is immediately usable in Python and vice versa.
+
+Other key-management helpers:
+
+```r
+eolas_key_status()    # show which source is supplying the key + masked first 8 chars
+eolas_key_clear()     # remove from OS keyring
+```
+
 ## Quickstart
 
 ```r
 library(eolas)
 library(ggplot2)
 
-eolas_key("your_api_key")   # or set EOLAS_API_KEY in .Renviron
+eolas_key("your_api_key")   # or: eolas_key_save() once, or set EOLAS_API_KEY in .Renviron
 
 # Generic
 df <- eolas_get("nz_cpi", start = "2020-01-01")

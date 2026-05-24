@@ -14,7 +14,8 @@ The key, invisibly.
 }
 \description{
 Stores the key for the duration of the R session. Alternatively, set the
-\code{EOLAS_API_KEY} environment variable and omit this call entirely.
+\code{EOLAS_API_KEY} environment variable or use \code{\link[=eolas_key_save]{eolas_key_save()}} to persist
+it to the OS keyring so you never need to call this again.
 }
 \examples{
 \dontrun{
