@@ -45,6 +45,15 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 }
 
 
+# Per-session set: tracks which dataset names we have already emitted the
+# auto-routing message for, so we don't spam on repeated calls.
+.eolas_auto_route_notified <- new.env(parent = emptyenv())
+
+# Row-count threshold above which a bulk-eligible dataset is auto-routed through
+# the cache+sync path instead of a live Iceberg scan.
+.EOLAS_AUTO_ROUTE_ROW_THRESHOLD <- 100000L
+
+
 # Internal: one-time nudge for users on the slower JSON path. Pushy (every
 # JSON-path user is told the exact fix + the measured win) but never aborts —
 # `arrow` stays in Suggests so install never breaks on a constrained box.
@@ -97,6 +106,18 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' The generic workhorse — use [eolas_get_statsnz()], [eolas_get_oecd()] etc. for
 #' source-tagged results and a nicer print output.
 #'
+#' The `mode` parameter controls which data path is used:
+#'
+#' - `"auto"` (default): smart-routes based on dataset metadata.
+#'   If any slice argument (`start`, `end`, `limit`) is set the live API is
+#'   always used.  Otherwise `eolas_info(name)` is called and the result
+#'   routed through [eolas_get_local()] (cache+sync) when the dataset is
+#'   bulk-eligible and large (>100k rows) or geospatial.  OECD and other
+#'   licence-restricted datasets always fall through to live regardless of size.
+#' - `"live"`: always use the live API endpoint, bypassing the cache.
+#' - `"cached"`: always use the cache+sync path (equivalent to calling
+#'   [eolas_get_local()]).  `start`, `end`, and `limit` are ignored.
+#'
 #' @param name Dataset identifier, e.g. `"nz_cpi"`.
 #' @param start ISO date lower bound, e.g. `"2020-01-01"`. Optional.
 #' @param end   ISO date upper bound, e.g. `"2024-12-31"`. Optional.
@@ -107,9 +128,15 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #'   `NULL` (default) auto-converts when the dataset has a `geometry_wkt`
 #'   column AND the `sf` package is installed. `TRUE` forces conversion (errors
 #'   if `sf` is missing). `FALSE` keeps the raw WKT string column.
+#'   Install with `install.packages("sf")`.
+#' @param mode `"auto"` (default), `"live"`, or `"cached"`. Controls
+#'   smart-routing behaviour; see Description above.
 #' @param base_url Override the API base URL (useful for testing).
 #' @return A `eolas_dataset` data frame with `date` coerced to `Date`, or an
-#'   `sf` object when geometry is present and conversion is enabled.
+#'   `sf` object when geometry is present and conversion is enabled.  When
+#'   routed through the cache+sync path (`"auto"` for large/geo datasets, or
+#'   `"cached"`), the return value is a plain `data.frame` or `sf` object as
+#'   returned by [eolas_get_local()].
 #' @export
 #' @examples
 #' \dontrun{
@@ -117,9 +144,62 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' df <- eolas_get("nz_cpi", start = "2020-01-01")
 #' library(ggplot2)
 #' ggplot(df, aes(date, value)) + geom_line()
+#'
+#' # Smart-routing: nz_parcels auto-routes to cache+sync in seconds
+#' gdf <- eolas_get("nz_parcels")
+#'
+#' # Force live even for large datasets
+#' gdf <- eolas_get("nz_parcels", mode = "live")
+#'
+#' # Force cache+sync explicitly (same as eolas_get_local)
+#' gdf <- eolas_get("nz_parcels", mode = "cached")
 #' }
 eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
-                   as_sf = NULL, base_url = EOLAS_BASE_URL) {
+                   as_sf = NULL, mode = "auto", base_url = EOLAS_BASE_URL) {
+
+  mode <- match.arg(mode, c("auto", "live", "cached"))
+
+  # ---- mode="cached": delegate entirely to the cache+sync path ---------------
+  if (mode == "cached") {
+    as_sf_local <- if (is.null(as_sf)) TRUE else isTRUE(as_sf)
+    return(eolas_get_local(name, as_sf = as_sf_local, base_url = base_url))
+  }
+
+  # ---- mode="auto": decide based on slice args + dataset metadata ------------
+  if (mode == "auto") {
+    has_slice <- !is.null(start) || !is.null(end) || !is.null(limit)
+    if (!has_slice) {
+      meta <- tryCatch(
+        eolas_info(name, base_url = base_url),
+        error = function(e) list()
+      )
+
+      bulk_export_class <- meta$bulk_export_class %||% "none"
+      bulk_ok <- nzchar(bulk_export_class) && bulk_export_class != "none"
+
+      is_geo <- !is.null(meta$geometry_type) || !is.null(meta$geometry_wkt) ||
+                isTRUE(meta$has_geometry)
+      row_count <- as.integer(meta$row_count_at_last_refresh %||% 0L)
+      is_large  <- row_count > .EOLAS_AUTO_ROUTE_ROW_THRESHOLD
+
+      if (bulk_ok && (is_geo || is_large)) {
+        # One-time per-dataset message so notebook users see what's happening.
+        name_str <- as.character(name)
+        if (!exists(name_str, envir = .eolas_auto_route_notified, inherits = FALSE)) {
+          assign(name_str, TRUE, envir = .eolas_auto_route_notified)
+          message(
+            "eolas: auto-routing '", name_str, "' through cache+sync (large/geo dataset).\n",
+            "       Cache lives at ~/.cache/eolas/. Use mode='live' to override."
+          )
+        }
+        as_sf_local <- if (is.null(as_sf)) TRUE else isTRUE(as_sf)
+        return(eolas_get_local(name, as_sf = as_sf_local, base_url = base_url))
+      }
+      # Fall through to the live path.
+    }
+  }
+
+  # ---- live path (mode="live", or auto fell through) -------------------------
   # Server-side: limit=0 means "as many rows as your plan allows" (50,000 cap on
   # Free/Starter, unlimited on Pro). NULL on the R side maps to limit=0.
   params <- list()

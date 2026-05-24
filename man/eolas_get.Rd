@@ -10,6 +10,7 @@ eolas_get(
   end = NULL,
   limit = NULL,
   as_sf = NULL,
+  mode = "auto",
   base_url = EOLAS_BASE_URL
 )
 }
@@ -27,17 +28,38 @@ Pass an integer to request fewer rows.}
 \item{as_sf}{Convert geospatial datasets to an \code{sf} object (CRS = WGS84).
 \code{NULL} (default) auto-converts when the dataset has a \code{geometry_wkt}
 column AND the \code{sf} package is installed. \code{TRUE} forces conversion (errors
-if \code{sf} is missing). \code{FALSE} keeps the raw WKT string column.}
+if \code{sf} is missing). \code{FALSE} keeps the raw WKT string column.
+Install with \code{install.packages("sf")}.}
+
+\item{mode}{\code{"auto"} (default), \code{"live"}, or \code{"cached"}. Controls
+smart-routing behaviour; see Description above.}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 }
 \value{
 A \code{eolas_dataset} data frame with \code{date} coerced to \code{Date}, or an
-\code{sf} object when geometry is present and conversion is enabled.
+\code{sf} object when geometry is present and conversion is enabled.  When
+routed through the cache+sync path (\code{"auto"} for large/geo datasets, or
+\code{"cached"}), the return value is a plain \code{data.frame} or \code{sf} object as
+returned by \code{\link[=eolas_get_local]{eolas_get_local()}}.
 }
 \description{
 The generic workhorse — use \code{\link[=eolas_get_statsnz]{eolas_get_statsnz()}}, \code{\link[=eolas_get_oecd]{eolas_get_oecd()}} etc. for
 source-tagged results and a nicer print output.
+}
+\details{
+The \code{mode} parameter controls which data path is used:
+\itemize{
+\item \code{"auto"} (default): smart-routes based on dataset metadata.
+If any slice argument (\code{start}, \code{end}, \code{limit}) is set the live API is
+always used.  Otherwise \code{eolas_info(name)} is called and the result
+routed through \code{\link[=eolas_get_local]{eolas_get_local()}} (cache+sync) when the dataset is
+bulk-eligible and large (>100k rows) or geospatial.  OECD and other
+licence-restricted datasets always fall through to live regardless of size.
+\item \code{"live"}: always use the live API endpoint, bypassing the cache.
+\item \code{"cached"}: always use the cache+sync path (equivalent to calling
+\code{\link[=eolas_get_local]{eolas_get_local()}}).  \code{start}, \code{end}, and \code{limit} are ignored.
+}
 }
 \examples{
 \dontrun{
@@ -45,5 +67,14 @@ eolas_key("your_key")
 df <- eolas_get("nz_cpi", start = "2020-01-01")
 library(ggplot2)
 ggplot(df, aes(date, value)) + geom_line()
+
+# Smart-routing: nz_parcels auto-routes to cache+sync in seconds
+gdf <- eolas_get("nz_parcels")
+
+# Force live even for large datasets
+gdf <- eolas_get("nz_parcels", mode = "live")
+
+# Force cache+sync explicitly (same as eolas_get_local)
+gdf <- eolas_get("nz_parcels", mode = "cached")
 }
 }
