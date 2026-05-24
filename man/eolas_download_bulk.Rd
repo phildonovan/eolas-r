@@ -9,6 +9,7 @@ eolas_download_bulk(
   freshness = "auto",
   format = "parquet",
   path = NULL,
+  progress = NULL,
   base_url = EOLAS_BASE_URL,
   ...
 )
@@ -24,6 +25,13 @@ eolas_download_bulk(
 \item{path}{Where to write the file. \code{NULL} (default) returns the raw
 bytes as a raw vector. A file path writes the file and returns its
 normalised path invisibly.}
+
+\item{progress}{Control the download progress bar. \code{NULL} (default)
+auto-detects: bar shown in interactive sessions (\code{interactive()} is
+\code{TRUE}), hidden in batch/CI/pipes. \code{TRUE} forces the bar on; \code{FALSE}
+forces it off. Also suppressed by \code{EOLAS_NO_PROGRESS=1} in the
+environment. When \code{path = NULL} (bytes mode) progress is always
+disabled — there is no file label to show.}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 
@@ -99,6 +107,9 @@ eolas_download_bulk("nz_cpi", freshness = "monthly", path = "nz_cpi.parquet")
 eolas_download_bulk("territorial_authority_2023",
                     format = "geoparquet",
                     path   = "ta2023.geo.parquet")
+
+# Silence the bar in a script run interactively
+eolas_download_bulk("nz_cpi", path = "nz_cpi.parquet", progress = FALSE)
 }
 
 }

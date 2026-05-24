@@ -10,6 +10,7 @@ eolas_get_local(
   format = NULL,
   freshness = "auto",
   as_sf = TRUE,
+  progress = NULL,
   base_url = EOLAS_BASE_URL,
   ...
 )
@@ -35,6 +36,13 @@ verbatim to \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}.}
 attempts to return an \code{sf} object via \code{sf::st_read()} or
 \code{sfarrow::st_read_parquet()}.  When \code{FALSE}, a plain data frame is
 returned regardless of geometry.}
+
+\item{progress}{Control the download progress bar. \code{NULL} (default)
+auto-detects: bar shown in interactive sessions (\code{interactive()} is
+\code{TRUE}), hidden in batch/CI/pipes. \code{TRUE} forces the bar on; \code{FALSE}
+forces it off. Also suppressed by \code{EOLAS_NO_PROGRESS=1} in the
+environment. When the dataset is already up to date no bar is shown
+(no data is transferred).}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 

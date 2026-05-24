@@ -29,6 +29,7 @@ with_mock_eolas <- function(body, status = 200L, code) {
   ns <- getNamespace("eolas")
   assign("key", "eolas_testkey", envir = ns$.eolas_env)
   local_mocked_bindings(
+    .eolas_use_streaming = function() FALSE,
     eolas_http_perform = function(...) httr2_mock_resp(body, status),
     .env = ns
   )

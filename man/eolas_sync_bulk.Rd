@@ -9,6 +9,7 @@ eolas_sync_bulk(
   path,
   format = "parquet",
   freshness = "auto",
+  progress = NULL,
   base_url = EOLAS_BASE_URL,
   ...
 )
@@ -23,6 +24,12 @@ Parent directories are created automatically.}
 \item{format}{\code{"parquet"} (default), \code{"csv_gz"}, or \code{"geoparquet"}.}
 
 \item{freshness}{\code{"auto"} (default), \code{"monthly"}, or \code{"current"}.}
+
+\item{progress}{Control the download progress bar. \code{NULL} (default)
+auto-detects via \code{interactive()}. \code{TRUE} forces the bar on; \code{FALSE}
+forces it off. Also suppressed by \code{EOLAS_NO_PROGRESS=1} in the
+environment. When \code{status = "unchanged"} no bar is shown regardless
+(no data is transferred).}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 

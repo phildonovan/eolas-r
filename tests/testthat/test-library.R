@@ -233,7 +233,7 @@ test_that("eolas_get_local: explicit cache_dir overrides library resolution", {
   written_dirs <- character(0)
 
   local_mocked_bindings(
-    eolas_sync_bulk = function(name, path, format, freshness, base_url) {
+    eolas_sync_bulk = function(name, path, format, freshness, progress = NULL, base_url, ...) {
       written_dirs <<- c(written_dirs, dirname(path))
       dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
       writeBin(raw(0), path)

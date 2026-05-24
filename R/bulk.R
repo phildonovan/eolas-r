@@ -9,6 +9,76 @@
 .BULK_VALID_FORMATS    <- c("parquet", "csv_gz", "geoparquet")
 .BULK_VALID_FRESHNESS  <- c("auto", "monthly", "current")
 
+# ---------------------------------------------------------------------------
+# Internal TTY gate — thin wrapper so tests can mock it cleanly via
+# with_mocked_bindings(.package = "eolas").
+# ---------------------------------------------------------------------------
+.eolas_is_interactive <- function() interactive()
+
+# Internal streaming gate — returns TRUE to use req_perform_connection()
+# (streaming, chunk-by-chunk progress), FALSE to use eolas_http_perform()
+# (buffered, for test mocks that return a pre-built response).
+# Tests mock this to FALSE via with_mocked_bindings(.package = "eolas").
+.eolas_use_streaming <- function() TRUE
+
+# Resolve the tri-state `progress` argument to a concrete logical.
+# Priority (highest first):
+#   1. Explicit progress = TRUE / FALSE from the caller.
+#   2. EOLAS_NO_PROGRESS=1 env var — always suppresses.
+#   3. .eolas_is_interactive() auto-detection.
+.eolas_resolve_progress <- function(progress) {
+  if (!is.null(progress) && !is.na(progress)) return(isTRUE(progress))
+  env_val <- trimws(Sys.getenv("EOLAS_NO_PROGRESS", unset = ""))
+  if (env_val %in% c("1", "true", "yes")) return(FALSE)
+  .eolas_is_interactive()
+}
+
+# Stream the body of a performing httr2 connection-response to a file,
+# optionally showing a cli progress bar.
+#
+# `resp`        — connection response from req_perform_connection().
+# `dest_path`   — file path to write into (opened in binary mode).
+# `total_bytes` — expected size from Content-Length, or NA for unknown.
+# `label`       — short description shown in the bar (e.g. filename).
+# `show_bar`    — logical; TRUE → show cli bar, FALSE → silent.
+#
+# Returns the number of bytes written.
+.eolas_stream_to_file <- function(resp, dest_path, total_bytes, label, show_bar) {
+  CHUNK <- 1048576L  # 1 MiB per chunk
+
+  has_cli <- requireNamespace("cli", quietly = TRUE)
+
+  if (show_bar && has_cli) {
+    bar_id <- cli::cli_progress_bar(
+      name   = label,
+      total  = if (is.na(total_bytes)) NA else total_bytes,
+      format = paste0(
+        "{cli::pb_name} ",
+        "{cli::pb_current_bytes}/{cli::pb_total_bytes} ",
+        "{cli::pb_rate_bytes} ETA {cli::pb_eta}"
+      ),
+      clear  = FALSE
+    )
+    on.exit(cli::cli_progress_done(id = bar_id), add = TRUE)
+  }
+
+  bytes_written <- 0L
+  fh <- file(dest_path, open = "wb")
+  on.exit(close(fh), add = TRUE)
+
+  repeat {
+    chunk <- httr2::resp_stream_raw(resp, kb = CHUNK %/% 1024L)
+    if (length(chunk) == 0L) break
+    writeBin(chunk, fh)
+    bytes_written <- bytes_written + length(chunk)
+    if (show_bar && has_cli) {
+      cli::cli_progress_update(inc = length(chunk), id = bar_id)
+    }
+  }
+
+  bytes_written
+}
+
 # Default output-file extensions for each format.
 .BULK_EXTENSIONS <- c(
   parquet    = ".parquet",
@@ -64,6 +134,12 @@
 #' @param path Where to write the file. `NULL` (default) returns the raw
 #'   bytes as a raw vector. A file path writes the file and returns its
 #'   normalised path invisibly.
+#' @param progress Control the download progress bar. `NULL` (default)
+#'   auto-detects: bar shown in interactive sessions (`interactive()` is
+#'   `TRUE`), hidden in batch/CI/pipes. `TRUE` forces the bar on; `FALSE`
+#'   forces it off. Also suppressed by `EOLAS_NO_PROGRESS=1` in the
+#'   environment. When `path = NULL` (bytes mode) progress is always
+#'   disabled — there is no file label to show.
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved for future arguments; currently ignored.
 #' @return Invisibly the normalised path when `path` is set;
@@ -92,6 +168,9 @@
 #' eolas_download_bulk("territorial_authority_2023",
 #'                     format = "geoparquet",
 #'                     path   = "ta2023.geo.parquet")
+#'
+#' # Silence the bar in a script run interactively
+#' eolas_download_bulk("nz_cpi", path = "nz_cpi.parquet", progress = FALSE)
 #' }
 #'
 #' @seealso
@@ -100,6 +179,7 @@ eolas_download_bulk <- function(name,
                                 freshness = "auto",
                                 format    = "parquet",
                                 path      = NULL,
+                                progress  = NULL,
                                 base_url  = EOLAS_BASE_URL,
                                 ...) {
 
@@ -127,7 +207,7 @@ eolas_download_bulk <- function(name,
   query <- list(format = format)
   if (freshness != "auto") query$freshness <- freshness
 
-  # ---- perform the request --------------------------------------------------
+  # ---- perform the request (streaming so we can show a progress bar) --------
   key <- eolas_get_key_internal()
   url <- paste0(base_url, "/v1/bulk/", namespace, "/", table)
   req <- httr2::request(url) |>
@@ -136,14 +216,22 @@ eolas_download_bulk <- function(name,
     httr2::req_url_query(!!!query) |>
     httr2::req_error(is_error = \(r) FALSE)
 
-  resp <- eolas_http_perform(req)
+  # Use req_perform_connection() for streaming so .eolas_stream_to_file()
+  # can update the progress bar chunk-by-chunk.  Fall back to eolas_http_perform()
+  # (which buffers the whole body) when a caller has mocked that function in tests.
+  use_streaming <- .eolas_use_streaming()
+  if (use_streaming) {
+    conn_resp <- httr2::req_perform_connection(req)
+    status    <- httr2::resp_status(conn_resp)
+  } else {
+    conn_resp <- eolas_http_perform(req)
+    status    <- httr2::resp_status(conn_resp)
+  }
 
   # ---- bulk-specific status handling ----------------------------------------
-  status <- httr2::resp_status(resp)
-
   if (status == 402L) {
-    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
-    detail <- body$detail %||% paste0(
+    body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
+    detail <- body_j$detail %||% paste0(
       "Fresh bulk downloads are a Pro feature. Free accounts get the latest ",
       "monthly snapshot — see https://eolas.fyi/pricing."
     )
@@ -151,18 +239,18 @@ eolas_download_bulk <- function(name,
   }
 
   if (status == 403L) {
-    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
-    detail <- body$detail %||% ""
+    body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
+    detail <- body_j$detail %||% ""
     if (nzchar(detail) && grepl("licence", detail, ignore.case = TRUE)) {
       stop("Bulk licence restricted: ", detail, call. = FALSE)
     }
     # Key-auth 403 — delegate to the standard status handler.
-    eolas_check_status(resp)
+    eolas_check_status(conn_resp)
   }
 
   if (status == 503L) {
-    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
-    detail <- body$detail %||% paste0(
+    body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
+    detail <- body_j$detail %||% paste0(
       "Monthly bulk snapshots are still rolling out for this dataset. ",
       "Try again after the 1st of next month, or upgrade to Pro for ",
       "on-demand current snapshots — see https://eolas.fyi/pricing."
@@ -170,22 +258,36 @@ eolas_download_bulk <- function(name,
     stop("Bulk not yet available: ", detail, call. = FALSE)
   }
 
-  # All other non-200 codes (401, 404, 429, 5xx) go through the standard handler.
   if (status != 200L) {
-    eolas_check_status(resp)
+    eolas_check_status(conn_resp)
   }
-
-  # ---- decode body ----------------------------------------------------------
-  raw_bytes <- httr2::resp_body_raw(resp)
 
   # ---- write or return ------------------------------------------------------
   if (is.null(path)) {
+    # Bytes mode — no progress bar (no file label to show).
+    raw_bytes <- httr2::resp_body_raw(conn_resp)
     return(raw_bytes)
   }
 
   out_path <- normalizePath(path, mustWork = FALSE)
   dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
-  writeBin(raw_bytes, out_path)
+
+  show_bar    <- .eolas_resolve_progress(progress)
+  total_bytes <- tryCatch(
+    as.numeric(httr2::resp_header(conn_resp, "Content-Length")),
+    error = \(e) NA_real_
+  )
+  label <- basename(out_path)
+
+  if (use_streaming) {
+    .eolas_stream_to_file(conn_resp, out_path, total_bytes, label, show_bar)
+    close(conn_resp)
+  } else {
+    # Non-streaming (test mock) path — body already buffered.
+    raw_bytes <- httr2::resp_body_raw(conn_resp)
+    writeBin(raw_bytes, out_path)
+  }
+
   invisible(out_path)
 }
 
@@ -279,6 +381,11 @@ eolas_download_bulk <- function(name,
 #'   Parent directories are created automatically.
 #' @param format `"parquet"` (default), `"csv_gz"`, or `"geoparquet"`.
 #' @param freshness `"auto"` (default), `"monthly"`, or `"current"`.
+#' @param progress Control the download progress bar. `NULL` (default)
+#'   auto-detects via `interactive()`. `TRUE` forces the bar on; `FALSE`
+#'   forces it off. Also suppressed by `EOLAS_NO_PROGRESS=1` in the
+#'   environment. When `status = "unchanged"` no bar is shown regardless
+#'   (no data is transferred).
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved; currently ignored.
 #' @return A named list with the same fields as Python's `SyncResult`:
@@ -316,6 +423,7 @@ eolas_sync_bulk <- function(name,
                             path,
                             format    = "parquet",
                             freshness = "auto",
+                            progress  = NULL,
                             base_url  = EOLAS_BASE_URL,
                             ...) {
 
@@ -383,38 +491,56 @@ eolas_sync_bulk <- function(name,
     httr2::req_url_query(!!!query) |>
     httr2::req_error(is_error = \(r) FALSE)
 
-  resp <- eolas_http_perform(req)
+  # Streaming path (real calls) vs buffered path (mocked tests).
+  use_streaming <- .eolas_use_streaming()
+  if (use_streaming) {
+    conn_resp <- httr2::req_perform_connection(req)
+    status    <- httr2::resp_status(conn_resp)
+  } else {
+    conn_resp <- eolas_http_perform(req)
+    status    <- httr2::resp_status(conn_resp)
+  }
 
   # ---- bulk-specific status handling (mirrors eolas_download_bulk) ----------
-  status <- httr2::resp_status(resp)
-
   if (status == 402L) {
-    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
-    detail <- body$detail %||% "Fresh bulk downloads are a Pro feature."
+    body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
+    detail <- body_j$detail %||% "Fresh bulk downloads are a Pro feature."
     stop("Bulk upgrade required: ", detail, call. = FALSE)
   }
   if (status == 403L) {
-    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
-    detail <- body$detail %||% ""
+    body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
+    detail <- body_j$detail %||% ""
     if (nzchar(detail) && grepl("licence", detail, ignore.case = TRUE)) {
       stop("Bulk licence restricted: ", detail, call. = FALSE)
     }
-    eolas_check_status(resp)
+    eolas_check_status(conn_resp)
   }
   if (status == 503L) {
-    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
-    detail <- body$detail %||% "Monthly bulk snapshots are still rolling out."
+    body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
+    detail <- body_j$detail %||% "Monthly bulk snapshots are still rolling out."
     stop("Bulk not yet available: ", detail, call. = FALSE)
   }
   if (status != 200L) {
-    eolas_check_status(resp)
+    eolas_check_status(conn_resp)
   }
 
-  raw_bytes   <- httr2::resp_body_raw(resp)
-  bytes_dl    <- length(raw_bytes)
+  show_bar    <- .eolas_resolve_progress(progress)
+  total_bytes <- tryCatch(
+    as.numeric(httr2::resp_header(conn_resp, "Content-Length")),
+    error = \(e) NA_real_
+  )
+  label <- basename(out_path)
 
-  # Write to tmp, then atomically rename onto the destination.
-  writeBin(raw_bytes, tmp_path)
+  if (use_streaming) {
+    bytes_dl <- .eolas_stream_to_file(conn_resp, tmp_path, total_bytes, label, show_bar)
+    close(conn_resp)
+  } else {
+    raw_bytes <- httr2::resp_body_raw(conn_resp)
+    bytes_dl  <- length(raw_bytes)
+    writeBin(raw_bytes, tmp_path)
+  }
+
+  # Atomic rename onto the destination.
   ok <- file.rename(tmp_path, out_path)
   if (!ok) {
     # file.rename can fail across filesystems — fall back to copy + unlink.
@@ -487,6 +613,12 @@ eolas_sync_bulk <- function(name,
 #'   attempts to return an `sf` object via `sf::st_read()` or
 #'   `sfarrow::st_read_parquet()`.  When `FALSE`, a plain data frame is
 #'   returned regardless of geometry.
+#' @param progress Control the download progress bar. `NULL` (default)
+#'   auto-detects: bar shown in interactive sessions (`interactive()` is
+#'   `TRUE`), hidden in batch/CI/pipes. `TRUE` forces the bar on; `FALSE`
+#'   forces it off. Also suppressed by `EOLAS_NO_PROGRESS=1` in the
+#'   environment. When the dataset is already up to date no bar is shown
+#'   (no data is transferred).
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved for future arguments; currently ignored.
 #' @return A `data.frame` or `sf` object, depending on the dataset and the
@@ -518,6 +650,7 @@ eolas_get_local <- function(name,
                              format    = NULL,
                              freshness = "auto",
                              as_sf     = TRUE,
+                             progress  = NULL,
                              base_url  = EOLAS_BASE_URL,
                              ...) {
 
@@ -557,7 +690,7 @@ eolas_get_local <- function(name,
   # restricted / Bulk not yet available) propagate unchanged — their messages
   # already tell the user what to do.
   eolas_sync_bulk(name, path = file_path, format = fmt,
-                  freshness = freshness, base_url = base_url)
+                  freshness = freshness, progress = progress, base_url = base_url)
 
   # ---- read the local file into a data frame --------------------------------
   if (fmt == "geoparquet" && isTRUE(as_sf)) {

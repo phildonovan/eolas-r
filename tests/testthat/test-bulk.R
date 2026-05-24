@@ -34,6 +34,7 @@ with_mock_bulk <- function(bulk_body,
 
   call_count <- 0L
   local_mocked_bindings(
+    .eolas_use_streaming = function() FALSE,
     eolas_http_perform = function(req) {
       call_count <<- call_count + 1L
       if (call_count == 1L) {
@@ -216,6 +217,7 @@ test_that("HTTP 404 on metadata lookup raises not found error", {
   ns <- getNamespace("eolas")
   assign("key", "eolas_testkey", envir = ns$.eolas_env)
   local_mocked_bindings(
+    .eolas_use_streaming = function() FALSE,
     eolas_http_perform = function(req) {
       httr2_mock_resp('{"detail":"Not found."}', status = 404L)
     },
@@ -270,6 +272,7 @@ with_mock_sync <- function(snapshot_id,
 
   call_count <- 0L
   local_mocked_bindings(
+    .eolas_use_streaming = function() FALSE,
     eolas_http_perform = function(req) {
       call_count <<- call_count + 1L
       if (call_count == 1L) {
@@ -319,6 +322,7 @@ with_mock_sync_unchanged <- function(snapshot_id,
 
   call_count <- 0L
   local_mocked_bindings(
+    .eolas_use_streaming = function() FALSE,
     eolas_http_perform = function(req) {
       call_count <<- call_count + 1L
       if (call_count == 1L) {
