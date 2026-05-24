@@ -5,20 +5,33 @@
 #   1. Explicit cache_dir= argument to eolas_get_local()  (handled by callers)
 #   2. EOLAS_LIBRARY environment variable
 #   3. library_dir in ~/.eolas/config.json
-#   4. (no interactive prompt in R — not practical in non-interactive sessions)
-#   5. ~/.cache/eolas/  (silent fallback)
+#   4. Interactive prompt (interactive sessions only, once per session)
+#   5. ~/.cache/eolas/  (silent fallback with one-time nudge)
 #
 # The config file path mirrors the Python client so that a library set from
 # Python (`eolas library set`) is immediately honoured in R and vice versa.
+#
+# Interactive gating uses R's built-in `interactive()` — the standard,
+# cross-platform, stdlib function used by usethis, askpass, gitcreds,
+# keyring, and every other package that needs to gate on a live user session.
+# It is the direct R equivalent of Python's `sys.stdin.isatty()`.
 
 # Path to the shared config file (same as Python's ~/.eolas/config.json).
 .eolas_config_file <- function() {
   file.path(path.expand("~"), ".eolas", "config.json")
 }
 
-# Per-session flag: have we already emitted the headless INFO message?
+# Per-session flags stored in a package-namespace environment (not options(),
+# which leaks into user globals). Pattern from tibble's one-time message gate.
 .eolas_lib_runtime <- new.env(parent = emptyenv())
 .eolas_lib_runtime$headless_info_emitted <- FALSE
+.eolas_lib_runtime$prompt_fired          <- FALSE
+
+# Thin wrapper around base::interactive() so tests can mock it via
+# local_mocked_bindings(.package = "eolas").  The base binding is in the
+# base namespace and cannot be patched at the call site; wrapping it here
+# gives the test suite a seam to override.
+.eolas_is_interactive <- function() interactive()
 
 
 # ---------------------------------------------------------------------------
@@ -81,10 +94,54 @@
 .eolas_emit_headless_info_once <- function() {
   if (isTRUE(.eolas_lib_runtime$headless_info_emitted)) return(invisible())
   .eolas_lib_runtime$headless_info_emitted <- TRUE
-  message(
-    "eolas: using ~/.cache/eolas/ (transient). ",
-    "Set EOLAS_LIBRARY or call eolas_library_set() to configure a persistent library."
+  if (requireNamespace("cli", quietly = TRUE)) {
+    cli::cli_inform(c(
+      "i" = "eolas: using {.path ~/.cache/eolas/} (transient OS cache).",
+      " " = "For persistent storage, set {.envvar EOLAS_LIBRARY}=/path/to/lib",
+      " " = "or run interactively and the package will prompt you."
+    ))
+  } else {
+    message(
+      "i eolas: using ~/.cache/eolas/ (transient OS cache).\n",
+      "  For persistent storage, set EOLAS_LIBRARY=/path/to/lib\n",
+      "  or run interactively and the package will prompt you."
+    )
+  }
+}
+
+# Session-once interactive prompt for library directory selection.
+# Called when: interactive() is TRUE AND no env/config value is set AND
+# the prompt has not already fired this session.
+.eolas_prompt_library_dir <- function() {
+  if (isTRUE(.eolas_lib_runtime$prompt_fired)) return(NULL)
+  .eolas_lib_runtime$prompt_fired <- TRUE
+
+  choice <- utils::menu(
+    choices = c(
+      "~/eolas-library  (user-wide, persistent — recommended)",
+      "./eolas-library  (this project)",
+      "Custom path...",
+      "Stay with ~/.cache/eolas  (don't ask again)"
+    ),
+    title = "eolas: no library configured. Where should data files live?"
   )
+
+  resolved <- switch(as.character(choice),
+    "1" = path.expand("~/eolas-library"),
+    "2" = file.path(getwd(), "eolas-library"),
+    "3" = {
+      p <- readline("Enter path: ")
+      if (nzchar(p)) path.expand(p) else NULL
+    },
+    "4" = path.expand("~/.cache/eolas"),
+    NULL   # 0 = user cancelled (Esc / Ctrl-C) -> fall through
+  )
+
+  if (!is.null(resolved) && nzchar(resolved)) {
+    suppressMessages(eolas_library_set(resolved))
+    return(resolved)
+  }
+  NULL
 }
 
 
@@ -106,7 +163,18 @@ eolas_resolve_library_dir <- function() {
     return(normalizePath(path.expand(cfg), mustWork = FALSE))
   }
 
-  # Step 5: fallback (~/.cache/eolas)
+  # Step 4: interactive prompt (once per session, skipped in batch/CI/Rmd/Shiny).
+  # Uses R's stdlib interactive() — the standard cross-platform TTY gate,
+  # equivalent to Python's sys.stdin.isatty().  Called via .eolas_is_interactive()
+  # so tests can mock it with local_mocked_bindings(.package = "eolas").
+  if (.eolas_is_interactive() && !isTRUE(.eolas_lib_runtime$prompt_fired)) {
+    prompted <- .eolas_prompt_library_dir()
+    if (!is.null(prompted)) {
+      return(normalizePath(path.expand(prompted), mustWork = FALSE))
+    }
+  }
+
+  # Step 5: fallback (~/.cache/eolas) — non-interactive OR user cancelled.
   .eolas_emit_headless_info_once()
   normalizePath(path.expand("~/.cache/eolas"), mustWork = FALSE)
 }

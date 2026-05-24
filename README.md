@@ -31,6 +31,8 @@ eolas_library_status()                  # show resolved path + source
 eolas_library_clear()                   # revert to ~/.cache/eolas/ fallback
 ```
 
+On first interactive use without a library configured, the package prompts you to choose one (skip with `EOLAS_LIBRARY=…` or by pre-calling `eolas_library_set()`).
+
 Or use an env var (useful for CI, Shiny Server, systemd):
 
 ```r

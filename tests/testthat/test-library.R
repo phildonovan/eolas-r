@@ -118,6 +118,116 @@ test_that("eolas_library_status reports 'fallback' when nothing configured", {
   })
 })
 
+# ---------------------------------------------------------------------------
+# Interactive prompt tests
+# ---------------------------------------------------------------------------
+
+test_that("interactive prompt skipped in non-interactive sessions", {
+  tmp <- withr::local_tempdir()
+
+  # Reset the session-once gate so we start clean for this test.
+  # Use assign() into the env object — the namespace binding itself is locked
+  # (sealed namespace) but the env's fields are mutable.
+  ns <- getNamespace("eolas")
+  rt <- ns$.eolas_lib_runtime
+  old_fired <- rt$prompt_fired
+  assign("prompt_fired", FALSE, envir = rt)
+  on.exit(assign("prompt_fired", old_fired, envir = rt), add = TRUE)
+
+  menu_called <- FALSE
+
+  withr::with_envvar(list(EOLAS_LIBRARY = ""), {
+    local_mocked_bindings(
+      .eolas_config_file    = function() file.path(tmp, "no_config.json"),
+      .eolas_is_interactive = function() FALSE,
+      .package = "eolas"
+    )
+    # utils::menu should never be reached when .eolas_is_interactive() is FALSE
+    local_mocked_bindings(
+      menu = function(...) { menu_called <<- TRUE; 0L },
+      .package = "utils"
+    )
+    result <- suppressMessages(eolas_resolve_library_dir())
+    expected <- normalizePath(path.expand("~/.cache/eolas"), mustWork = FALSE)
+    expect_equal(result, expected)
+    expect_false(menu_called, info = "utils::menu must not be called in non-interactive mode")
+  })
+})
+
+test_that("interactive prompt fires when no config and session is interactive", {
+  tmp <- withr::local_tempdir()
+
+  ns <- getNamespace("eolas")
+  rt <- ns$.eolas_lib_runtime
+  old_fired <- rt$prompt_fired
+  assign("prompt_fired", FALSE, envir = rt)
+  on.exit(assign("prompt_fired", old_fired, envir = rt), add = TRUE)
+
+  # Capture what eolas_library_set was called with
+  set_called_with <- NULL
+
+  withr::with_envvar(list(EOLAS_LIBRARY = ""), {
+    local_mocked_bindings(
+      .eolas_config_file    = function() file.path(tmp, "config.json"),
+      .eolas_is_interactive = function() TRUE,
+      eolas_library_set     = function(path) {
+        set_called_with <<- path
+        normalizePath(path.expand(path), mustWork = FALSE)
+      },
+      .package = "eolas"
+    )
+    local_mocked_bindings(
+      menu = function(...) 1L,   # choice 1 = ~/eolas-library
+      .package = "utils"
+    )
+    result <- suppressMessages(eolas_resolve_library_dir())
+
+    expected_path <- normalizePath(path.expand("~/eolas-library"), mustWork = FALSE)
+    expect_equal(result, expected_path)
+    expect_equal(
+      normalizePath(path.expand(set_called_with), mustWork = FALSE),
+      expected_path,
+      info = "eolas_library_set should have been called with ~/eolas-library"
+    )
+  })
+})
+
+test_that("interactive prompt only fires once per session", {
+  tmp <- withr::local_tempdir()
+
+  ns <- getNamespace("eolas")
+  rt <- ns$.eolas_lib_runtime
+  old_fired <- rt$prompt_fired
+  assign("prompt_fired", FALSE, envir = rt)
+  on.exit(assign("prompt_fired", old_fired, envir = rt), add = TRUE)
+
+  menu_call_count <- 0L
+
+  withr::with_envvar(list(EOLAS_LIBRARY = ""), {
+    local_mocked_bindings(
+      .eolas_config_file    = function() file.path(tmp, "no_config.json"),
+      .eolas_is_interactive = function() TRUE,
+      eolas_library_set     = function(path) normalizePath(path.expand(path), mustWork = FALSE),
+      .package = "eolas"
+    )
+    local_mocked_bindings(
+      menu = function(...) { menu_call_count <<- menu_call_count + 1L; 1L },
+      .package = "utils"
+    )
+
+    # First call: prompt should fire
+    suppressMessages(eolas_resolve_library_dir())
+    expect_equal(menu_call_count, 1L, info = "menu should be called on first resolve")
+
+    # Second call: prompt_fired is now TRUE; menu must NOT be called again.
+    # .eolas_config_file and interactive() are still mocked from the outer scope.
+    suppressMessages(eolas_resolve_library_dir())
+    expect_equal(menu_call_count, 1L, info = "menu must not be called a second time in the same session")
+  })
+})
+
+# ---------------------------------------------------------------------------
+
 test_that("eolas_get_local: explicit cache_dir overrides library resolution", {
   explicit_dir <- withr::local_tempdir()
   written_dirs <- character(0)
