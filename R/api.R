@@ -177,8 +177,11 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
       bulk_export_class <- meta$bulk_export_class %||% "none"
       bulk_ok <- nzchar(bulk_export_class) && bulk_export_class != "none"
 
-      is_geo <- !is.null(meta$geometry_type) || !is.null(meta$geometry_wkt) ||
-                isTRUE(meta$has_geometry)
+      gt  <- meta$geometry_type
+      wkt <- meta$geometry_wkt
+      gt_truthy  <- !is.null(gt)  && nzchar(gt)  && gt  != "none"
+      wkt_truthy <- !is.null(wkt) && nzchar(wkt) && wkt != "none"
+      is_geo <- gt_truthy || wkt_truthy || isTRUE(meta$has_geometry)
       row_count <- as.integer(meta$row_count_at_last_refresh %||% 0L)
       is_large  <- row_count > .EOLAS_AUTO_ROUTE_ROW_THRESHOLD
 

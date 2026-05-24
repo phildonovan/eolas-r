@@ -235,6 +235,49 @@ test_that("eolas_get_local auto-detects parquet for non-geo datasets", {
 })
 
 # ---------------------------------------------------------------------------
+# Auto-detect format: geometry_type="none" string -> parquet (NOT geoparquet)
+# Regression test for Bug A.
+# ---------------------------------------------------------------------------
+
+test_that("eolas_get_local auto-detects parquet when geometry_type is string 'none'", {
+  tmp <- withr::local_tempdir()
+
+  format_seen <- NULL
+
+  ns <- getNamespace("eolas")
+  assign("key", "eolas_testkey", envir = ns$.eolas_env)
+
+  meta_with_none_string <- jsonlite::toJSON(
+    list(name = "rbnz_b2_wholesale_rates_monthly",
+         namespace = "rbnz", table = "rbnz_b2_wholesale_rates_monthly",
+         geometry_type = "none",   # enriched server field — must be treated as non-geo
+         has_geometry  = NULL),
+    auto_unbox = TRUE, null = "null"
+  )
+
+  local_mocked_bindings(
+    eolas_info = function(n, base_url = NULL) {
+      jsonlite::fromJSON(meta_with_none_string, simplifyVector = FALSE)
+    },
+    eolas_sync_bulk = function(n, path, format, freshness, base_url = NULL, ...) {
+      format_seen <<- format
+      list(status = "downloaded", previous_snapshot_id = NA_character_,
+           current_snapshot_id = SNAPSHOT_ID,
+           path = normalizePath(path, mustWork = FALSE),
+           bytes_downloaded = 1024L)
+    },
+    .env = ns
+  )
+
+  tryCatch(
+    eolas_get_local("rbnz_b2_wholesale_rates_monthly", cache_dir = tmp),
+    error = function(e) NULL
+  )
+
+  expect_equal(format_seen, "parquet")   # must NOT be "geoparquet"
+})
+
+# ---------------------------------------------------------------------------
 # Bulk error propagation: stop() messages pass through unchanged
 # ---------------------------------------------------------------------------
 

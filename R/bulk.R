@@ -279,13 +279,40 @@ eolas_download_bulk <- function(name,
   )
   label <- basename(out_path)
 
-  if (use_streaming) {
-    .eolas_stream_to_file(conn_resp, out_path, total_bytes, label, show_bar)
-    close(conn_resp)
-  } else {
-    # Non-streaming (test mock) path — body already buffered.
-    raw_bytes <- httr2::resp_body_raw(conn_resp)
-    writeBin(raw_bytes, out_path)
+  rand_hex <- paste0(sample(c(0:9, letters[1:6]), 8, replace = TRUE), collapse = "")
+  tmp_path <- paste0(out_path, ".eolas-tmp-", rand_hex)
+
+  bytes_dl <- tryCatch({
+    if (use_streaming) {
+      n <- .eolas_stream_to_file(conn_resp, tmp_path, total_bytes, label, show_bar)
+      close(conn_resp)
+      n
+    } else {
+      # Non-streaming (test mock) path — body already buffered.
+      raw_bytes <- httr2::resp_body_raw(conn_resp)
+      writeBin(raw_bytes, tmp_path)
+      length(raw_bytes)
+    }
+  }, error = function(e) {
+    unlink(tmp_path)
+    stop(e)
+  })
+
+  if (bytes_dl == 0L) {
+    unlink(tmp_path)
+    stop(
+      "Bulk download for ", sQuote(name), " returned an empty body (0 bytes). ",
+      "The snapshot may not exist for this dataset or format. ",
+      "Use format = \"parquet\" for non-geo datasets.",
+      call. = FALSE
+    )
+  }
+
+  # Atomic rename onto the final path; fall back to copy+unlink cross-filesystem.
+  ok <- file.rename(tmp_path, out_path)
+  if (!ok) {
+    file.copy(tmp_path, out_path, overwrite = TRUE)
+    unlink(tmp_path)
   }
 
   invisible(out_path)
@@ -540,6 +567,16 @@ eolas_sync_bulk <- function(name,
     writeBin(raw_bytes, tmp_path)
   }
 
+  if (bytes_dl == 0L) {
+    unlink(tmp_path)
+    stop(
+      "Bulk download for ", sQuote(name), " returned an empty body (0 bytes). ",
+      "The snapshot may not exist for this dataset or format. ",
+      "Use format = \"parquet\" for non-geo datasets.",
+      call. = FALSE
+    )
+  }
+
   # Atomic rename onto the destination.
   ok <- file.rename(tmp_path, out_path)
   if (!ok) {
@@ -673,10 +710,13 @@ eolas_get_local <- function(name,
 
   # ---- auto-detect format if not specified ----------------------------------
   if (is.null(format)) {
-    meta   <- eolas_info(name, base_url = base_url)
-    is_geo <- !is.null(meta$geometry_type) || !is.null(meta$geometry_wkt) ||
-              isTRUE(meta$has_geometry)
-    fmt    <- if (is_geo) "geoparquet" else "parquet"
+    meta       <- eolas_info(name, base_url = base_url)
+    gt         <- meta$geometry_type
+    wkt        <- meta$geometry_wkt
+    gt_truthy  <- !is.null(gt)  && nzchar(gt)  && gt  != "none"
+    wkt_truthy <- !is.null(wkt) && nzchar(wkt) && wkt != "none"
+    is_geo     <- gt_truthy || wkt_truthy || isTRUE(meta$has_geometry)
+    fmt        <- if (is_geo) "geoparquet" else "parquet"
   } else {
     fmt <- match.arg(format, .BULK_VALID_FORMATS)
   }

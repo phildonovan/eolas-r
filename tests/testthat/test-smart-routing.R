@@ -50,6 +50,19 @@ META_LICENCE_RESTRICTED <- list(
   row_count_at_last_refresh = 250000L
 )
 
+# Server now returns geometry_type = "none" (string) for non-geo datasets after
+# the metadata-enrichment landing in commit 3e192e5. The string must NOT trigger
+# the geo path — "none" is semantically falsy for routing purposes.
+META_NON_GEO_WITH_NONE_STRING <- list(
+  name                     = "rbnz_b2_wholesale_rates_monthly",
+  source                   = "RBNZ",
+  namespace                = "rbnz",
+  bulk_export_class        = "on_demand",
+  geometry_type            = "none",   # string "none" — must be treated as non-geo
+  has_geometry             = NULL,
+  row_count_at_last_refresh = 91L     # below 100,000 threshold
+)
+
 FAKE_LOCAL_DF <- data.frame(date = "2023-01-01", value = 1100.5,
                              stringsAsFactors = FALSE)
 
@@ -94,6 +107,41 @@ test_that("auto mode: small non-geo bulk-eligible dataset routes to live", {
   expect_equal(info_calls,  1L)   # metadata was checked
   expect_equal(local_calls, 0L)   # cache path NOT taken
   expect_equal(fetch_calls, 1L)   # live path taken
+})
+
+# ---------------------------------------------------------------------------
+# mode = "auto" — geometry_type="none" string does NOT trigger geo/cache path
+# Regression test for Bug A — the non-empty string was truthy before the fix.
+# ---------------------------------------------------------------------------
+
+test_that("auto mode: geometry_type='none' string (server enriched) routes to live, not cache", {
+  .seed_key()
+
+  info_calls  <- 0L
+  local_calls <- 0L
+  fetch_calls <- 0L
+
+  local_mocked_bindings(
+    eolas_info = function(name, base_url = NULL) {
+      info_calls <<- info_calls + 1L
+      META_NON_GEO_WITH_NONE_STRING
+    },
+    eolas_get_local = function(name, ...) {
+      local_calls <<- local_calls + 1L
+      FAKE_LOCAL_DF
+    },
+    .eolas_fetch_df = function(name, params, base_url) {
+      fetch_calls <<- fetch_calls + 1L
+      FAKE_LIVE_DF
+    },
+    .package = "eolas"
+  )
+
+  eolas_get("rbnz_b2_wholesale_rates_monthly")
+
+  expect_equal(info_calls,  1L)   # metadata was checked
+  expect_equal(local_calls, 0L)   # cache path must NOT be taken
+  expect_equal(fetch_calls, 1L)   # live path must be taken
 })
 
 # ---------------------------------------------------------------------------
