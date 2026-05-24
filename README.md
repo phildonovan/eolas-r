@@ -10,23 +10,36 @@ _Coverage is New Zealand + OECD today. Australian sources are on the roadmap —
 remotes::install_github("phildonovan/eolas-r")
 ```
 
-## Save your API key (workstation)
+## Quick setup (workstation)
 
-Save your key to the OS keyring once and never paste it again:
+Two one-off steps make every future R session frictionless:
+
+**1. Save your API key** to the OS keyring (macOS Keychain / Windows Credential Manager / Linux Secret Service) so `eolas_get_*()` finds it automatically — no `eolas_key()` call needed:
 
 ```r
 install.packages("keyring")   # one-off; on Linux: sudo apt install libsecret-1-dev first
 eolas_key_save()              # interactive masked prompt
 ```
 
-After that, `eolas_get_*()` finds the key automatically in every future R session — no `eolas_key()` call needed. The same OS keyring slot (`service = "eolas"`) is read by the Python `eolas-data` client, so a key saved from R is immediately usable in Python and vice versa.
+Other key-management helpers: `eolas_key_status()`, `eolas_key_clear()`.
 
-Other key-management helpers:
+**2. Set a library directory** so downloaded bulk files land somewhere permanent instead of the transient `~/.cache/eolas/` OS cache:
 
 ```r
-eolas_key_status()    # show which source is supplying the key + masked first 8 chars
-eolas_key_clear()     # remove from OS keyring
+eolas_library_set("~/eolas-library")    # writes to ~/.eolas/config.json
+eolas_library_status()                  # show resolved path + source
+eolas_library_clear()                   # revert to ~/.cache/eolas/ fallback
 ```
+
+Or use an env var (useful for CI, Shiny Server, systemd):
+
+```r
+Sys.setenv(EOLAS_LIBRARY = "~/eolas-library")
+```
+
+After setting the library, `eolas_get_local("nz_parcels")` and the smart-routing in `eolas_get("nz_parcels")` will use `~/eolas-library/` automatically.
+
+The OS keyring slot and config file (`~/.eolas/config.json`) are shared with the Python `eolas-data` client, so a key or library path set from R is immediately usable in Python and vice versa.
 
 ## Quickstart
 

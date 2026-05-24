@@ -473,7 +473,12 @@ eolas_sync_bulk <- function(name,
 #'
 #' @param name Dataset identifier, e.g. `"nz_parcels"`.
 #' @param cache_dir Local directory for cached files.  Accepts `~`-prefixed
-#'   paths.  Created if it does not exist.  Defaults to `"~/.cache/eolas"`.
+#'   paths.  Created if it does not exist.  `NULL` (default) resolves via the
+#'   library precedence chain: `EOLAS_LIBRARY` env var,
+#'   then `library_dir` in `~/.eolas/config.json`,
+#'   then `~/.cache/eolas/` fallback.  An explicit value here always wins
+#'   (highest priority). Use `eolas_library_set()` to configure a persistent
+#'   location.
 #' @param format `"parquet"`, `"csv_gz"`, or `"geoparquet"`.  `NULL` (default)
 #'   auto-detects from dataset metadata.
 #' @param freshness `"auto"` (default), `"monthly"`, or `"current"`.  Passed
@@ -498,7 +503,7 @@ eolas_sync_bulk <- function(name,
 #' # Non-geo tabular dataset
 #' df <- eolas_get_local("nz_cpi")
 #'
-#' # Custom cache directory
+#' # Explicit cache directory (overrides library config — highest priority)
 #' df <- eolas_get_local("nz_cpi", cache_dir = "/data/eolas-cache")
 #'
 #' # Force CSV format
@@ -507,9 +512,9 @@ eolas_sync_bulk <- function(name,
 #' # Keep plain data.frame even for geo datasets
 #' df <- eolas_get_local("nz_parcels", as_sf = FALSE)
 #' }
-#' @seealso [eolas_sync_bulk()], <https://docs.eolas.fyi/bulk-downloads/>
+#' @seealso [eolas_sync_bulk()], `eolas_library_set()`, <https://docs.eolas.fyi/bulk-downloads/>
 eolas_get_local <- function(name,
-                             cache_dir = "~/.cache/eolas",
+                             cache_dir = NULL,
                              format    = NULL,
                              freshness = "auto",
                              as_sf     = TRUE,
@@ -522,10 +527,14 @@ eolas_get_local <- function(name,
   }
   freshness <- match.arg(freshness, .BULK_VALID_FRESHNESS)
 
-  # ---- resolve cache_dir (expand ~ and create if needed) -------------------
-  # Must create before calling file_path_as_absolute, which requires the path
-  # to exist.
-  cache_dir_expanded <- path.expand(cache_dir)
+  # ---- resolve cache_dir ---------------------------------------------------
+  # Explicit cache_dir= wins (Step 1 of the precedence chain).
+  # NULL triggers the library resolver (Steps 2-5).
+  if (is.null(cache_dir)) {
+    cache_dir_expanded <- eolas_resolve_library_dir()
+  } else {
+    cache_dir_expanded <- path.expand(as.character(cache_dir))
+  }
   dir.create(cache_dir_expanded, recursive = TRUE, showWarnings = FALSE)
   cache_dir_abs <- tools::file_path_as_absolute(cache_dir_expanded)
 

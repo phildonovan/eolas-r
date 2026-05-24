@@ -6,7 +6,7 @@
 \usage{
 eolas_get_local(
   name,
-  cache_dir = "~/.cache/eolas",
+  cache_dir = NULL,
   format = NULL,
   freshness = "auto",
   as_sf = TRUE,
@@ -18,7 +18,12 @@ eolas_get_local(
 \item{name}{Dataset identifier, e.g. \code{"nz_parcels"}.}
 
 \item{cache_dir}{Local directory for cached files.  Accepts \code{~}-prefixed
-paths.  Created if it does not exist.  Defaults to \code{"~/.cache/eolas"}.}
+paths.  Created if it does not exist.  \code{NULL} (default) resolves via the
+library precedence chain: \code{EOLAS_LIBRARY} env var,
+then \code{library_dir} in \verb{~/.eolas/config.json},
+then \verb{~/.cache/eolas/} fallback.  An explicit value here always wins
+(highest priority). Use \code{eolas_library_set()} to configure a persistent
+location.}
 
 \item{format}{\code{"parquet"}, \code{"csv_gz"}, or \code{"geoparquet"}.  \code{NULL} (default)
 auto-detects from dataset metadata.}
@@ -82,7 +87,7 @@ gdf <- eolas_get_local("nz_parcels")
 # Non-geo tabular dataset
 df <- eolas_get_local("nz_cpi")
 
-# Custom cache directory
+# Explicit cache directory (overrides library config — highest priority)
 df <- eolas_get_local("nz_cpi", cache_dir = "/data/eolas-cache")
 
 # Force CSV format
@@ -93,5 +98,5 @@ df <- eolas_get_local("nz_parcels", as_sf = FALSE)
 }
 }
 \seealso{
-\code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}, \url{https://docs.eolas.fyi/bulk-downloads/}
+\code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}, \code{eolas_library_set()}, \url{https://docs.eolas.fyi/bulk-downloads/}
 }
