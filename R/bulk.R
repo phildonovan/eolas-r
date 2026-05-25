@@ -653,10 +653,18 @@ eolas_sync_bulk <- function(name,
 #'   auto-detects from dataset metadata.
 #' @param freshness `"auto"` (default), `"monthly"`, or `"current"`.  Passed
 #'   verbatim to [eolas_sync_bulk()].
-#' @param as_sf When `TRUE` (default) and the file is GeoParquet, the function
+#' @param as_sf When `TRUE` and the file is GeoParquet, the function
 #'   attempts to return an `sf` object via `sf::st_read()` or
 #'   `sfarrow::st_read_parquet()`.  When `FALSE`, a plain data frame is
-#'   returned regardless of geometry.
+#'   returned regardless of geometry.  `NULL` (default) is treated as `TRUE`
+#'   unless `as_arrow = TRUE`, in which case it is treated as `FALSE`.
+#'   Cannot be combined with `as_arrow = TRUE` (stops with an error).
+#' @param as_arrow When `TRUE`, skip all native geometry materialisation and
+#'   return an `arrow::Table` directly.  Geometry stays as Arrow buffers
+#'   (zero-copy) — suitable for DuckDB / dplyr pipelines that work on a
+#'   sample before converting to sf.  Works for geo and non-geo datasets.
+#'   Cannot be combined with `as_sf = TRUE` (stops with an error).  Requires
+#'   the `arrow` package: `install.packages("arrow")`.
 #' @param progress Control the download progress bar. `NULL` (default)
 #'   auto-detects: bar shown in interactive sessions (`interactive()` is
 #'   `TRUE`), hidden in batch/CI/pipes. `TRUE` forces the bar on; `FALSE`
@@ -665,8 +673,8 @@ eolas_sync_bulk <- function(name,
 #'   (no data is transferred).
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved for future arguments; currently ignored.
-#' @return A `data.frame` or `sf` object, depending on the dataset and the
-#'   `as_sf` argument.
+#' @return A `data.frame`, `sf` object, or `arrow::Table`, depending on the
+#'   dataset and the `as_sf` / `as_arrow` arguments.
 #' @export
 #' @examples
 #' \dontrun{
@@ -687,13 +695,17 @@ eolas_sync_bulk <- function(name,
 #'
 #' # Keep plain data.frame even for geo datasets
 #' df <- eolas_get_local("nz_parcels", as_sf = FALSE)
+#'
+#' # Arrow table — zero-copy, no sf allocation; suitable for DuckDB / dplyr
+#' tbl <- eolas_get_local("nz_parcels", as_arrow = TRUE)
 #' }
 #' @seealso [eolas_sync_bulk()], `eolas_library_set()`, <https://docs.eolas.fyi/bulk-downloads/>
 eolas_get_local <- function(name,
                              cache_dir = NULL,
                              format    = NULL,
                              freshness = "auto",
-                             as_sf     = TRUE,
+                             as_sf     = NULL,
+                             as_arrow  = FALSE,
                              progress  = NULL,
                              base_url  = EOLAS_BASE_URL,
                              ...) {
@@ -703,6 +715,18 @@ eolas_get_local <- function(name,
     stop("`name` must be a non-empty string.", call. = FALSE)
   }
   freshness <- match.arg(freshness, .BULK_VALID_FRESHNESS)
+
+  # ---- as_arrow / as_sf conflict guard -------------------------------------
+  if (isTRUE(as_arrow) && isTRUE(as_sf)) {
+    stop(
+      "as_arrow = TRUE and as_sf = TRUE are mutually exclusive. ",
+      "as_arrow returns an arrow::Table (no geometry materialisation); ",
+      "as_sf materialises geometry as sf objects. Choose one.",
+      call. = FALSE
+    )
+  }
+  # Resolve as_sf NULL → default TRUE unless as_arrow overrides.
+  as_sf_resolved <- if (!is.null(as_sf)) as_sf else !isTRUE(as_arrow)
 
   # ---- resolve cache_dir ---------------------------------------------------
   # Explicit cache_dir= wins (Step 1 of the precedence chain).
@@ -740,7 +764,27 @@ eolas_get_local <- function(name,
                   freshness = freshness, progress = progress, base_url = base_url)
 
   # ---- read the local file into a data frame --------------------------------
-  if (fmt == "geoparquet" && isTRUE(as_sf)) {
+  # as_arrow=TRUE: return arrow::Table directly, skipping all sf/WKB conversion.
+  # Works for parquet, geoparquet, and csv_gz.
+  if (isTRUE(as_arrow)) {
+    if (!requireNamespace("arrow", quietly = TRUE)) {
+      stop(
+        "The `arrow` package is required for as_arrow = TRUE. ",
+        "Install with: install.packages(\"arrow\")",
+        call. = FALSE
+      )
+    }
+    if (fmt == "csv_gz") {
+      # No native Arrow CSV-GZ reader — read via utils::read.csv then convert.
+      df_tmp <- utils::read.csv(gzfile(file_path), stringsAsFactors = FALSE)
+      return(arrow::as_arrow_table(df_tmp))
+    } else {
+      # parquet or geoparquet — arrow reads both natively without sf overhead.
+      return(arrow::read_parquet(file_path, as_data_frame = FALSE))
+    }
+  }
+
+  if (fmt == "geoparquet" && isTRUE(as_sf_resolved)) {
     # Try sfarrow first (reads GeoParquet natively), then sf via a temp copy.
     if (requireNamespace("sfarrow", quietly = TRUE)) {
       sfarrow_err <- NULL

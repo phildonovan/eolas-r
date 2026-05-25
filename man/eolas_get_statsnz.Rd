@@ -4,7 +4,14 @@
 \alias{eolas_get_statsnz}
 \title{Fetch a Stats NZ series}
 \usage{
-eolas_get_statsnz(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL)
+eolas_get_statsnz(
+  name,
+  start = NULL,
+  end = NULL,
+  limit = NULL,
+  as_sf = NULL,
+  as_arrow = FALSE
+)
 }
 \arguments{
 \item{name}{Dataset identifier, e.g. \code{"nz_cpi"}.}
@@ -21,11 +28,16 @@ Pass an integer to request fewer rows.}
 \code{NULL} (default) auto-converts when the dataset has a \code{geometry_wkt}
 column AND the \code{sf} package is installed. \code{TRUE} forces conversion (errors
 if \code{sf} is missing). \code{FALSE} keeps the raw WKT string column.
-Install with \code{install.packages("sf")}.}
+Install with \code{install.packages("sf")}. Cannot be combined with
+\code{as_arrow = TRUE}.}
+
+\item{as_arrow}{When \code{TRUE}, return an \code{arrow::Table} instead of a
+data frame or \code{sf} object (zero-copy, no geometry materialisation).
+Cannot be combined with \code{as_sf = TRUE}.}
 }
 \value{
-A \code{eolas_dataset} data frame, or an \code{sf} object when geometry is present
-and conversion is enabled.
+A \code{eolas_dataset} data frame, an \code{sf} object when geometry is present
+and conversion is enabled, or an \code{arrow::Table} when \code{as_arrow = TRUE}.
 }
 \description{
 A named wrapper over \code{\link[=eolas_get]{eolas_get()}} that tags the result with the

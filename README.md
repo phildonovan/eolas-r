@@ -108,6 +108,27 @@ gdf <- eolas_get("nz_addresses")          # sf object
 df  <- eolas_get("nz_addresses", as_sf = FALSE)  # plain df, WKT preserved
 ```
 
+## Working with large geo datasets
+
+The 5.4M-row `linz.nz_parcels` table allocates ~10 GB when materialised as an `sf` object. Pass `as_arrow = TRUE` to skip all geometry materialisation and get a zero-copy `arrow::Table` instead — geometry stays as character WKT until you need it:
+
+```r
+# Zero-copy Arrow table — no sf allocation
+tbl <- eolas_get_linz("nz_parcels", as_arrow = TRUE)
+
+# Filter before materialising — dramatically cheaper than loading the full sf object
+library(duckdb)
+con <- dbConnect(duckdb())
+result <- dbGetQuery(con, "
+  SELECT parcel_id, geometry_wkt
+  FROM tbl
+  WHERE ST_Within(ST_GeomFromText(geometry_wkt),
+                  ST_GeomFromText('POLYGON((174.7 -41.3, 174.8 -41.3, 174.8 -41.4, 174.7 -41.4, 174.7 -41.3))'))
+")
+```
+
+`as_arrow = TRUE` works on all datasets (geo or non-geo), all routing modes (`mode = "live"`, `"cached"`, `"auto"`), and all `eolas_get_*()` source helpers. It cannot be combined with `as_sf = TRUE`.
+
 ## Faster transport (Arrow)
 
 `eolas_get()` (and every `eolas_get_*()`) automatically uses Apache Arrow as

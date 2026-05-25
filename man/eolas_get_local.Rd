@@ -9,7 +9,8 @@ eolas_get_local(
   cache_dir = NULL,
   format = NULL,
   freshness = "auto",
-  as_sf = TRUE,
+  as_sf = NULL,
+  as_arrow = FALSE,
   progress = NULL,
   base_url = EOLAS_BASE_URL,
   ...
@@ -32,10 +33,19 @@ auto-detects from dataset metadata.}
 \item{freshness}{\code{"auto"} (default), \code{"monthly"}, or \code{"current"}.  Passed
 verbatim to \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}.}
 
-\item{as_sf}{When \code{TRUE} (default) and the file is GeoParquet, the function
+\item{as_sf}{When \code{TRUE} and the file is GeoParquet, the function
 attempts to return an \code{sf} object via \code{sf::st_read()} or
 \code{sfarrow::st_read_parquet()}.  When \code{FALSE}, a plain data frame is
-returned regardless of geometry.}
+returned regardless of geometry.  \code{NULL} (default) is treated as \code{TRUE}
+unless \code{as_arrow = TRUE}, in which case it is treated as \code{FALSE}.
+Cannot be combined with \code{as_arrow = TRUE} (stops with an error).}
+
+\item{as_arrow}{When \code{TRUE}, skip all native geometry materialisation and
+return an \code{arrow::Table} directly.  Geometry stays as Arrow buffers
+(zero-copy) — suitable for DuckDB / dplyr pipelines that work on a
+sample before converting to sf.  Works for geo and non-geo datasets.
+Cannot be combined with \code{as_sf = TRUE} (stops with an error).  Requires
+the \code{arrow} package: \code{install.packages("arrow")}.}
 
 \item{progress}{Control the download progress bar. \code{NULL} (default)
 auto-detects: bar shown in interactive sessions (\code{interactive()} is
@@ -49,8 +59,8 @@ environment. When the dataset is already up to date no bar is shown
 \item{...}{Reserved for future arguments; currently ignored.}
 }
 \value{
-A \code{data.frame} or \code{sf} object, depending on the dataset and the
-\code{as_sf} argument.
+A \code{data.frame}, \code{sf} object, or \code{arrow::Table}, depending on the
+dataset and the \code{as_sf} / \code{as_arrow} arguments.
 }
 \description{
 This is the recommended path for large or geospatial datasets in an
@@ -103,6 +113,9 @@ df <- eolas_get_local("nz_cpi", format = "csv_gz")
 
 # Keep plain data.frame even for geo datasets
 df <- eolas_get_local("nz_parcels", as_sf = FALSE)
+
+# Arrow table — zero-copy, no sf allocation; suitable for DuckDB / dplyr
+tbl <- eolas_get_local("nz_parcels", as_arrow = TRUE)
 }
 }
 \seealso{

@@ -10,6 +10,7 @@ eolas_get(
   end = NULL,
   limit = NULL,
   as_sf = NULL,
+  as_arrow = FALSE,
   mode = "auto",
   base_url = EOLAS_BASE_URL
 )
@@ -29,7 +30,15 @@ Pass an integer to request fewer rows.}
 \code{NULL} (default) auto-converts when the dataset has a \code{geometry_wkt}
 column AND the \code{sf} package is installed. \code{TRUE} forces conversion (errors
 if \code{sf} is missing). \code{FALSE} keeps the raw WKT string column.
-Install with \code{install.packages("sf")}.}
+Install with \code{install.packages("sf")}. Cannot be combined with
+\code{as_arrow = TRUE}.}
+
+\item{as_arrow}{When \code{TRUE}, return an \code{arrow::Table} instead of a
+\code{data.frame} or \code{sf} object.  Geometry stays as Arrow buffers
+(zero-copy, no sf allocation) — suitable for DuckDB / dplyr pipelines.
+Works on every dataset (geo or non-geo) and every routing mode.
+Cannot be combined with \code{as_sf = TRUE} (stops with an error).
+Requires the \code{arrow} package: \code{install.packages("arrow")}.}
 
 \item{mode}{\code{"auto"} (default), \code{"live"}, or \code{"cached"}. Controls
 smart-routing behaviour; see Description above.}

@@ -128,7 +128,14 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #'   `NULL` (default) auto-converts when the dataset has a `geometry_wkt`
 #'   column AND the `sf` package is installed. `TRUE` forces conversion (errors
 #'   if `sf` is missing). `FALSE` keeps the raw WKT string column.
-#'   Install with `install.packages("sf")`.
+#'   Install with `install.packages("sf")`. Cannot be combined with
+#'   `as_arrow = TRUE`.
+#' @param as_arrow When `TRUE`, return an `arrow::Table` instead of a
+#'   `data.frame` or `sf` object.  Geometry stays as Arrow buffers
+#'   (zero-copy, no sf allocation) — suitable for DuckDB / dplyr pipelines.
+#'   Works on every dataset (geo or non-geo) and every routing mode.
+#'   Cannot be combined with `as_sf = TRUE` (stops with an error).
+#'   Requires the `arrow` package: `install.packages("arrow")`.
 #' @param mode `"auto"` (default), `"live"`, or `"cached"`. Controls
 #'   smart-routing behaviour; see Description above.
 #' @param base_url Override the API base URL (useful for testing).
@@ -155,14 +162,26 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' gdf <- eolas_get("nz_parcels", mode = "cached")
 #' }
 eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
-                   as_sf = NULL, mode = "auto", base_url = EOLAS_BASE_URL) {
+                   as_sf = NULL, as_arrow = FALSE,
+                   mode = "auto", base_url = EOLAS_BASE_URL) {
 
   mode <- match.arg(mode, c("auto", "live", "cached"))
 
+  # ---- as_arrow / as_sf conflict guard ----------------------------------------
+  if (isTRUE(as_arrow) && isTRUE(as_sf)) {
+    stop(
+      "as_arrow = TRUE and as_sf = TRUE are mutually exclusive. ",
+      "as_arrow returns an arrow::Table (no geometry materialisation); ",
+      "as_sf materialises geometry as sf objects. Choose one.",
+      call. = FALSE
+    )
+  }
+
   # ---- mode="cached": delegate entirely to the cache+sync path ---------------
   if (mode == "cached") {
-    as_sf_local <- if (is.null(as_sf)) TRUE else isTRUE(as_sf)
-    return(eolas_get_local(name, as_sf = as_sf_local, base_url = base_url))
+    as_sf_local <- if (is.null(as_sf)) !isTRUE(as_arrow) else isTRUE(as_sf)
+    return(eolas_get_local(name, as_sf = as_sf_local, as_arrow = as_arrow,
+                           base_url = base_url))
   }
 
   # ---- mode="auto": decide based on slice args + dataset metadata ------------
@@ -195,8 +214,9 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
             "       Cache lives at ~/.cache/eolas/. Use mode='live' to override."
           )
         }
-        as_sf_local <- if (is.null(as_sf)) TRUE else isTRUE(as_sf)
-        return(eolas_get_local(name, as_sf = as_sf_local, base_url = base_url))
+        as_sf_local <- if (is.null(as_sf)) !isTRUE(as_arrow) else isTRUE(as_sf)
+        return(eolas_get_local(name, as_sf = as_sf_local, as_arrow = as_arrow,
+                               base_url = base_url))
       }
       # Fall through to the live path.
     }
@@ -218,6 +238,19 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
     # callers can `ggplot(df, aes(date, value)) + geom_line()` without zigzag.
     df <- df[order(df$date), , drop = FALSE]
     rownames(df) <- NULL
+  }
+
+  # as_arrow on the live path: convert the data.frame to an arrow::Table,
+  # avoiding any sf/shapely allocation. geometry_wkt stays as a character column.
+  if (isTRUE(as_arrow)) {
+    if (!requireNamespace("arrow", quietly = TRUE)) {
+      stop(
+        "The `arrow` package is required for as_arrow = TRUE. ",
+        "Install with: install.packages(\"arrow\")",
+        call. = FALSE
+      )
+    }
+    return(arrow::as_arrow_table(df))
   }
 
   result <- new_eolas_dataset(df, name = name)
