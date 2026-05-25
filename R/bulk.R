@@ -86,6 +86,13 @@
   geoparquet = ".geo.parquet"
 )
 
+# Thin wrapper around sfarrow::st_read_parquet() — exists solely so tests can
+# mock it via local_mocked_bindings(.env = getNamespace("eolas")) without
+# having to patch the sfarrow namespace directly.
+.eolas_sfarrow_read_parquet <- function(file_path) {
+  sfarrow::st_read_parquet(file_path)
+}
+
 # Sidecar schema version — bump if the JSON structure changes incompatibly.
 .SIDECAR_SCHEMA_VERSION <- 1L
 
@@ -736,7 +743,112 @@ eolas_get_local <- function(name,
   if (fmt == "geoparquet" && isTRUE(as_sf)) {
     # Try sfarrow first (reads GeoParquet natively), then sf via a temp copy.
     if (requireNamespace("sfarrow", quietly = TRUE)) {
-      return(sfarrow::st_read_parquet(file_path))
+      sfarrow_err <- NULL
+      result <- tryCatch(
+        .eolas_sfarrow_read_parquet(file_path),
+        error = function(e) {
+          sfarrow_err <<- e
+          NULL
+        }
+      )
+      if (!is.null(result)) return(result)
+
+      # sfarrow failed — likely malformed GeoParquet metadata (e.g. empty
+      # geometry_types array from an older S3 snapshot).  Fall back to the
+      # plain .parquet variant which carries a geometry_wkt string column,
+      # then promote it to sf via sf::st_as_sf().
+      if (requireNamespace("cli", quietly = TRUE)) {
+        cli::cli_warn(paste0(
+          "GeoParquet read failed; fell back to WKT path. ",
+          "This dataset's bulk artifact will self-heal at the next monthly refresh."
+        ))
+      } else {
+        warning(
+          "GeoParquet read failed; fell back to WKT path. ",
+          "This dataset's bulk artifact will self-heal at the next monthly refresh.",
+          call. = FALSE
+        )
+      }
+
+      if (!requireNamespace("arrow", quietly = TRUE)) {
+        stop(
+          conditionMessage(sfarrow_err),
+          "\n\nWorkaround: install the `arrow` package ",
+          "(install.packages(\"arrow\")) to enable the geometry_wkt fallback.",
+          call. = FALSE
+        )
+      }
+      if (!requireNamespace("sf", quietly = TRUE)) {
+        stop(
+          conditionMessage(sfarrow_err),
+          "\n\nWorkaround: install the `sf` package ",
+          "(install.packages(\"sf\")) to enable the geometry_wkt fallback.",
+          call. = FALSE
+        )
+      }
+
+      # Download (or serve from cache) the plain .parquet variant.
+      parquet_path <- file.path(
+        dirname(file_path),
+        paste0(name, ".parquet")
+      )
+      fallback_err <- tryCatch({
+        eolas_sync_bulk(
+          name,
+          path      = parquet_path,
+          format    = "parquet",
+          freshness = freshness,
+          progress  = progress,
+          base_url  = base_url
+        )
+        NULL
+      }, error = function(e) e)
+
+      if (!is.null(fallback_err)) {
+        stop(
+          conditionMessage(sfarrow_err),
+          "\n\nThe geometry_wkt fallback also failed: ",
+          conditionMessage(fallback_err),
+          call. = FALSE
+        )
+      }
+
+      df <- tryCatch(
+        as.data.frame(arrow::read_parquet(parquet_path)),
+        error = function(e) {
+          stop(
+            conditionMessage(sfarrow_err),
+            "\n\nThe geometry_wkt fallback also failed while reading the plain ",
+            "Parquet: ", conditionMessage(e),
+            call. = FALSE
+          )
+        }
+      )
+
+      if (!"geometry_wkt" %in% names(df)) {
+        stop(
+          conditionMessage(sfarrow_err),
+          "\n\nThe geometry_wkt fallback failed: the plain Parquet file has no ",
+          "'geometry_wkt' column. Contact support@eolas.fyi.",
+          call. = FALSE
+        )
+      }
+
+      # Use the same defensive .eolas_to_sf() helper used by the live-API path:
+      # it handles blank/null/malformed WKT rows without aborting (they become
+      # EMPTY geometry), which is important for large datasets like nz_parcels.
+      sf_obj <- tryCatch(
+        .eolas_to_sf(df, force = TRUE),
+        error = function(e) {
+          stop(
+            conditionMessage(sfarrow_err),
+            "\n\nThe geometry_wkt fallback also failed during sf conversion: ",
+            conditionMessage(e),
+            call. = FALSE
+          )
+        }
+      )
+      return(sf_obj)
     }
     if (requireNamespace("sf", quietly = TRUE)) {
       return(sf::st_read(file_path, quiet = TRUE))

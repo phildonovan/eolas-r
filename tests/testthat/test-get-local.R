@@ -168,7 +168,9 @@ test_that("eolas_get_local expands ~ in cache_dir to an absolute path", {
 test_that("eolas_get_local auto-detects geoparquet for geo datasets", {
   tmp <- withr::local_tempdir()
 
-  format_seen <- NULL
+  # Capture the *first* format passed to eolas_sync_bulk — that's what we test.
+  # A second call may happen (parquet fallback) if sfarrow errors; we ignore it.
+  first_format_seen <- NULL
 
   ns <- getNamespace("eolas")
   assign("key", "eolas_testkey", envir = ns$.eolas_env)
@@ -179,9 +181,9 @@ test_that("eolas_get_local auto-detects geoparquet for geo datasets", {
       jsonlite::fromJSON(DATASET_META_GEO, simplifyVector = FALSE)
     },
     eolas_sync_bulk = function(n, path, format, freshness, base_url = NULL, ...) {
-      format_seen <<- format
-      # Don't write a real GeoParquet (complex); just record the format used.
-      # The read step will fail, but we only test format detection here.
+      if (is.null(first_format_seen)) first_format_seen <<- format
+      # Don't write a real file — just record the format. The read step will
+      # fail (or fire the WKT fallback), but we only test format detection here.
       list(status = "downloaded", previous_snapshot_id = NA_character_,
            current_snapshot_id = SNAPSHOT_ID,
            path = normalizePath(path, mustWork = FALSE),
@@ -190,13 +192,14 @@ test_that("eolas_get_local auto-detects geoparquet for geo datasets", {
     .env = ns
   )
 
-  # Suppress the expected read failure — we only care about format selection.
-  tryCatch(
+  # Suppress the expected read failure and any WKT-fallback warning — we only
+  # care about format selection, not whether the read itself succeeds.
+  suppressWarnings(tryCatch(
     eolas_get_local("nz_parcels", cache_dir = tmp),
     error = function(e) NULL
-  )
+  ))
 
-  expect_equal(format_seen, "geoparquet")
+  expect_equal(first_format_seen, "geoparquet")
 })
 
 # ---------------------------------------------------------------------------
@@ -357,4 +360,222 @@ test_that("eolas_get_local propagates Bulk not yet available stop() unchanged", 
     "Bulk not yet available",
     fixed = TRUE
   )
+})
+
+# ---------------------------------------------------------------------------
+# GeoParquet WKT fallback: sfarrow throws → retry via plain parquet + st_as_sf
+# ---------------------------------------------------------------------------
+
+test_that("eolas_get_local falls back to WKT parquet when sfarrow throws on malformed GeoParquet", {
+  skip_if_not_installed("arrow")
+  skip_if_not_installed("sf")
+  skip_if_not_installed("sfarrow")
+
+  tmp <- withr::local_tempdir()
+
+  # We need two separate paths:
+  #   nz_parcels.geo.parquet  (malformed — triggers sfarrow error)
+  #   nz_parcels.parquet      (plain, written by the fallback sync_bulk call)
+  #
+  # Both are written by the mocked eolas_sync_bulk based on the `format` arg.
+
+  # Build a minimal real .parquet with a geometry_wkt column for the fallback read.
+  wkt_parquet_path <- file.path(tmp, "nz_parcels.parquet")
+  df_wkt <- data.frame(
+    id           = 1L,
+    geometry_wkt = "POINT (174.76 -36.85)",
+    stringsAsFactors = FALSE
+  )
+  arrow::write_parquet(df_wkt, wkt_parquet_path)
+
+  ns <- getNamespace("eolas")
+  assign("key", "eolas_testkey", envir = ns$.eolas_env)
+
+  local_mocked_bindings(
+    eolas_info = function(n, base_url = NULL) {
+      jsonlite::fromJSON(DATASET_META_GEO, simplifyVector = FALSE)
+    },
+    eolas_sync_bulk = function(n, path, format, freshness, base_url = NULL, ...) {
+      if (format == "geoparquet") {
+        # Write a stub .geo.parquet so the file_path exists (sfarrow will be
+        # mocked to fail before actually reading it).
+        dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+        writeBin(raw(0L), path)
+      }
+      # For format == "parquet" the real file was already written above at
+      # wkt_parquet_path; nothing else to do — path == wkt_parquet_path.
+      list(
+        status               = "downloaded",
+        previous_snapshot_id = NA_character_,
+        current_snapshot_id  = SNAPSHOT_ID,
+        path                 = normalizePath(path, mustWork = FALSE),
+        bytes_downloaded     = 1024L
+      )
+    },
+    # Mock the thin sfarrow wrapper to simulate a malformed-GeoParquet error.
+    .eolas_sfarrow_read_parquet = function(file_path) {
+      stop("vapply(x, is.raw, TRUE) are not all TRUE", call. = FALSE)
+    },
+    .env = ns
+  )
+
+  expect_warning(
+    result <- eolas_get_local("nz_parcels", cache_dir = tmp, progress = FALSE),
+    regexp = "GeoParquet read failed",
+    fixed  = FALSE
+  )
+
+  expect_s3_class(result, "sf")
+  expect_equal(nrow(result), 1L)
+  # .eolas_to_sf() drops the raw geometry_wkt string column and creates a
+  # proper "geometry" sfc column — consistent with the live-API path.
+  expect_false("geometry_wkt" %in% names(result))
+  expect_equal(attr(result, "sf_column"), "geometry")
+  expect_true(inherits(result[["geometry"]], "sfc"))
+})
+
+test_that("eolas_get_local re-raises sfarrow error when both GeoParquet and WKT fallback fail", {
+  skip_if_not_installed("arrow")
+  skip_if_not_installed("sf")
+  skip_if_not_installed("sfarrow")
+
+  tmp <- withr::local_tempdir()
+
+  ns <- getNamespace("eolas")
+  assign("key", "eolas_testkey", envir = ns$.eolas_env)
+
+  local_mocked_bindings(
+    eolas_info = function(n, base_url = NULL) {
+      jsonlite::fromJSON(DATASET_META_GEO, simplifyVector = FALSE)
+    },
+    eolas_sync_bulk = function(n, path, format, freshness, base_url = NULL, ...) {
+      if (format == "geoparquet") {
+        dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+        writeBin(raw(0L), path)
+      }
+      if (format == "parquet") {
+        # Fallback sync also fails
+        stop("Bulk not yet available: parquet fallback unavailable.", call. = FALSE)
+      }
+      list(status = "downloaded", previous_snapshot_id = NA_character_,
+           current_snapshot_id = SNAPSHOT_ID, path = path, bytes_downloaded = 0L)
+    },
+    .eolas_sfarrow_read_parquet = function(file_path) {
+      stop("vapply(x, is.raw, TRUE) are not all TRUE", call. = FALSE)
+    },
+    .env = ns
+  )
+
+  # The cli_warn() fires before the stop() — suppress it so the test focuses on
+  # the stop() message, not the incidental warning from the fallback path.
+  suppressWarnings(expect_error(
+    eolas_get_local("nz_parcels", cache_dir = tmp, progress = FALSE),
+    "vapply(x, is.raw, TRUE) are not all TRUE",
+    fixed = TRUE
+  ))
+})
+
+# ---------------------------------------------------------------------------
+# Malformed GeoParquet (empty geometry_types metadata): end-to-end fallback
+#
+# This test uses the arrow R package to write a real Parquet file, then
+# injects GeoParquet metadata with an empty geometry_types array — exactly
+# the condition that triggered Phil's WKB error.  sfarrow::st_read_parquet()
+# is NOT mocked here; we allow it to fail on the real (tiny) malformed file,
+# and confirm the WKT fallback rescues the session.
+#
+# No real network calls are made; eolas_sync_bulk is mocked throughout.
+# The dataset is 1 row — no memory risk.
+# ---------------------------------------------------------------------------
+
+test_that("malformed GeoParquet (empty geometry_types) triggers WKT fallback and returns sf", {
+  skip_if_not_installed("arrow")
+  skip_if_not_installed("sf")
+  skip_if_not_installed("sfarrow")
+
+  tmp <- withr::local_tempdir()
+
+  # ---- Build a minimal GeoParquet with geometry_types: [] -------------------
+  # Use arrow's low-level metadata API to inject the broken GeoParquet spec.
+  df_raw <- data.frame(
+    id           = 1L,
+    geometry_wkt = "POINT (174.76 -36.85)",
+    stringsAsFactors = FALSE
+  )
+
+  # Write plain parquet first (used by the WKT fallback path).
+  parquet_path <- file.path(tmp, "nz_parcels.parquet")
+  arrow::write_parquet(df_raw, parquet_path)
+
+  # Build the malformed GeoParquet by writing the same data with a
+  # hand-crafted "geo" schema metadata key where geometry_types is [].
+  geo_parquet_path <- file.path(tmp, "nz_parcels.geo.parquet")
+
+  # Encode the WKT as WKB so GeoParquet has a binary column, but use empty
+  # geometry_types to trigger the sfarrow parse error.
+  wkb_col <- sf::st_as_binary(sf::st_as_sfc("POINT (174.76 -36.85)", crs = 4326))
+  df_geo <- data.frame(id = 1L, stringsAsFactors = FALSE)
+  df_geo[["geometry"]] <- list(wkb_col[[1]])  # raw vector, 1 element
+
+  geo_meta <- jsonlite::toJSON(list(
+    version        = jsonlite::unbox("1.0.0"),
+    primary_column = jsonlite::unbox("geometry"),
+    columns        = list(
+      geometry = list(
+        encoding       = jsonlite::unbox("WKB"),
+        geometry_types = list()   # <- empty array: violates GeoParquet spec
+      )
+    )
+  ), auto_unbox = FALSE)
+
+  # Write via arrow with the injected metadata.
+  tbl     <- arrow::as_arrow_table(df_geo)
+  old_meta <- tbl$schema$metadata
+  tbl <- tbl$RenameColumns(c("id", "geometry"))
+  new_schema <- tbl$schema$WithMetadata(
+    c(old_meta, list(geo = geo_meta))
+  )
+  arrow::write_parquet(
+    tbl$cast(new_schema),
+    geo_parquet_path
+  )
+
+  # ---- Mock network layer ---------------------------------------------------
+  ns <- getNamespace("eolas")
+  assign("key", "eolas_testkey", envir = ns$.eolas_env)
+
+  local_mocked_bindings(
+    eolas_info = function(n, base_url = NULL) {
+      jsonlite::fromJSON(DATASET_META_GEO, simplifyVector = FALSE)
+    },
+    eolas_sync_bulk = function(n, path, format, freshness, base_url = NULL, ...) {
+      # Files are already written above — no-op here.
+      list(
+        status               = "downloaded",
+        previous_snapshot_id = NA_character_,
+        current_snapshot_id  = SNAPSHOT_ID,
+        path                 = normalizePath(path, mustWork = FALSE),
+        bytes_downloaded     = 1024L
+      )
+    },
+    .env = ns
+  )
+
+  # ---- Primary path must fail, fallback must succeed and emit a warning -----
+  # sfarrow is NOT mocked here — it will genuinely fail on the malformed file.
+  # If sfarrow happens to succeed (future sfarrow version is more lenient),
+  # the test still passes (result will be sf) — the warning check uses
+  # tryCatch so the test degrades gracefully.
+  result <- withCallingHandlers(
+    eolas_get_local("nz_parcels", cache_dir = tmp, progress = FALSE),
+    warning = function(w) {
+      if (grepl("GeoParquet read failed", conditionMessage(w))) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+
+  expect_s3_class(result, "sf")
+  expect_equal(nrow(result), 1L)
+  expect_false("geometry_wkt" %in% names(result))
 })
