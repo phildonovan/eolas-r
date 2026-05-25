@@ -22,9 +22,20 @@ eolas_check_status <- function(resp) {
   status <- httr2::resp_status(resp)
   if (status == 200L) return(invisible(resp))
 
+  # Double-tryCatch: first try JSON, then plain string, then synthesise a
+  # message from the status code alone. The innermost fallback is critical for
+  # CF 504/521/522 and origin-timeout responses that deliver an empty body —
+  # resp_body_string() calls resp_body_raw() which cli_abort()s on 0-byte bodies,
+  # producing a confusing internal traceback instead of a clear "retry" message.
   body <- tryCatch(
     httr2::resp_body_json(resp),
-    error = \(e) list(detail = httr2::resp_body_string(resp))
+    error = function(e) tryCatch(
+      list(detail = httr2::resp_body_string(resp)),
+      error = function(e2) list(detail = sprintf(
+        "Empty response body (status %d). Likely CF gateway or origin timeout — retry.",
+        httr2::resp_status(resp)
+      ))
+    )
   )
   detail <- body$detail %||% "Unknown error"
 

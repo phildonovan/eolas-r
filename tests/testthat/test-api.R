@@ -185,6 +185,78 @@ test_that("404 raises not found error", {
 })
 
 # ---------------------------------------------------------------------------
+# Empty-body / gateway-error handling (CF 504/521/522)
+# ---------------------------------------------------------------------------
+
+# Helper: construct an httr2_response with an empty (0-byte) body.  The normal
+# httr2_mock_resp() always supplies a JSON body; this one deliberately does not
+# so we can exercise the innermost tryCatch fallback in eolas_check_status.
+httr2_mock_resp_empty <- function(status) {
+  structure(
+    list(
+      method  = "GET",
+      url     = "https://api.eolas.fyi/test",
+      status_code = as.integer(status),
+      headers = structure(list(`content-type` = ""), class = "httr2_headers"),
+      body    = raw(0L),
+      cache   = new.env(parent = emptyenv())
+    ),
+    class = "httr2_response"
+  )
+}
+
+test_that("504 with empty body produces a clean error message (not an internal traceback)", {
+  ns <- getNamespace("eolas")
+  assign("key", "eolas_testkey", envir = ns$.eolas_env)
+  local_mocked_bindings(
+    eolas_http_perform = function(...) httr2_mock_resp_empty(504L),
+    .env = ns
+  )
+  err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
+  expect_s3_class(err, "error")
+  # Message must mention the status code — not an internal httr2 traceback.
+  expect_match(conditionMessage(err), "504")
+  # Must NOT mention the internal httr2 helper that used to blow up.
+  expect_false(grepl("Can't retrieve empty body", conditionMessage(err), fixed = TRUE))
+})
+
+test_that("521 with empty body produces a clean error message", {
+  ns <- getNamespace("eolas")
+  assign("key", "eolas_testkey", envir = ns$.eolas_env)
+  local_mocked_bindings(
+    eolas_http_perform = function(...) httr2_mock_resp_empty(521L),
+    .env = ns
+  )
+  err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
+  expect_s3_class(err, "error")
+  expect_match(conditionMessage(err), "521")
+  expect_false(grepl("Can't retrieve empty body", conditionMessage(err), fixed = TRUE))
+})
+
+test_that("522 with empty body produces a clean error message", {
+  ns <- getNamespace("eolas")
+  assign("key", "eolas_testkey", envir = ns$.eolas_env)
+  local_mocked_bindings(
+    eolas_http_perform = function(...) httr2_mock_resp_empty(522L),
+    .env = ns
+  )
+  err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
+  expect_s3_class(err, "error")
+  expect_match(conditionMessage(err), "522")
+})
+
+test_that("empty-body error detail includes retry hint", {
+  ns <- getNamespace("eolas")
+  assign("key", "eolas_testkey", envir = ns$.eolas_env)
+  local_mocked_bindings(
+    eolas_http_perform = function(...) httr2_mock_resp_empty(504L),
+    .env = ns
+  )
+  err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
+  expect_match(conditionMessage(err), "retry", ignore.case = TRUE)
+})
+
+# ---------------------------------------------------------------------------
 # Geospatial — as_sf
 # ---------------------------------------------------------------------------
 
