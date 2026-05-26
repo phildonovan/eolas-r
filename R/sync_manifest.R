@@ -63,11 +63,20 @@
 .manifest_validate_entry <- function(entry) {
   if (!is.list(entry)) stop("Manifest entry must be a list.", call. = FALSE)
 
-  # snapshot_id: must be numeric (R stores large ints as double)
-  if (is.null(entry$snapshot_id) ||
-      !is.numeric(entry$snapshot_id) ||
-      length(entry$snapshot_id) != 1L) {
-    stop("ManifestEntry snapshot_id must be a single numeric.", call. = FALSE)
+  # snapshot_id: must be numeric or a string representing an integer.
+  # Python-written manifests use JSON numbers (parsed as numeric by jsonlite).
+  # New R-written manifests use JSON strings (for full 64-bit precision).
+  # Both are acceptable here.
+  sid <- entry$snapshot_id
+  if (is.null(sid) || length(sid) != 1L ||
+      (!is.numeric(sid) && !is.character(sid))) {
+    stop("ManifestEntry snapshot_id must be a single numeric or string.", call. = FALSE)
+  }
+  if (is.character(sid) && !grepl("^-?[0-9]+$", sid)) {
+    stop(paste0(
+      "ManifestEntry snapshot_id string '", sid,
+      "' is not a valid integer representation."
+    ), call. = FALSE)
   }
 
   # kind
@@ -104,9 +113,17 @@
     }
   } else {
     # delta
-    if (is.null(entry$parent_snapshot) || !is.numeric(entry$parent_snapshot)) {
-      stop("ManifestEntry kind='delta' must have numeric 'parent_snapshot'.",
+    ps <- entry$parent_snapshot
+    if (is.null(ps) || length(ps) != 1L ||
+        (!is.numeric(ps) && !is.character(ps))) {
+      stop("ManifestEntry kind='delta' must have numeric or string 'parent_snapshot'.",
            call. = FALSE)
+    }
+    if (is.character(ps) && !grepl("^-?[0-9]+$", ps)) {
+      stop(paste0(
+        "ManifestEntry parent_snapshot '", ps,
+        "' is not a valid integer representation."
+      ), call. = FALSE)
     }
     if (is.null(entry$rows_added) || !is.numeric(entry$rows_added) ||
         entry$rows_added < 0) {
@@ -153,10 +170,12 @@
   }
 
   # current_snapshot must appear in the snapshots list (if set and non-empty).
+  # Use character comparison to handle both numeric and string snapshot IDs.
   cur <- manifest$current_snapshot
   if (!is.null(cur) && length(snaps) > 0L) {
-    ids <- vapply(snaps, function(e) e$snapshot_id, numeric(1L))
-    if (!any(ids == cur)) {
+    ids_chr <- vapply(snaps, function(e) as.character(e$snapshot_id), character(1L))
+    cur_chr  <- as.character(cur)
+    if (!any(ids_chr == cur_chr)) {
       stop(paste0(
         "Manifest current_snapshot ", cur,
         " is not found in the snapshots list."
@@ -217,6 +236,47 @@
 #' @param library_dir Path to the root library directory.
 #' @param dataset Dataset name (sub-directory under `library_dir`).
 #' @param manifest A named list conforming to the manifest schema.
+# Convert snapshot id numerics to character strings for JSON serialisation.
+# Iceberg snapshot ids are 64-bit integers.  R stores them as IEEE-754
+# doubles, which lose the last ~8 bits of precision for values > 2^53.
+# Writing them as JSON strings (e.g. "4178402751765785856") preserves all
+# digits.  Python's _coerce_snapshot_id() in manifest.py accepts both int
+# and str, so this is backward-compatible with Python-written manifests.
+#
+# We apply this to a deep copy of the manifest list so the in-memory object
+# retains numeric types (which the validator needs for numeric comparisons).
+.manifest_encode_for_json <- function(manifest) {
+  out <- manifest
+
+  snap_to_str <- function(x) {
+    if (is.character(x)) return(trimws(x))
+    if (is.numeric(x) && !is.na(x))
+      # sprintf %0.0f rounds to the nearest representable double and strips the
+      # decimal point.  Iceberg snapshot ids are 64-bit integers; R stores them
+      # as IEEE-754 doubles which can only represent integers exactly up to 2^53
+      # (~9e15).  Iceberg ids are ~4e18, so the last few bits are already lost
+      # when the server response is parsed by jsonlite.  This is a fundamental
+      # R limitation (no native int64).  The string form at least avoids the
+      # extra precision loss from the scientific-notation JSON form that
+      # jsonlite would otherwise write.
+      sprintf("%0.0f", x)
+    else
+      x
+  }
+
+  out$current_snapshot <- snap_to_str(out$current_snapshot)
+
+  out$snapshots <- lapply(out$snapshots, function(entry) {
+    entry$snapshot_id <- snap_to_str(entry$snapshot_id)
+    if (!is.null(entry$parent_snapshot)) {
+      entry$parent_snapshot <- snap_to_str(entry$parent_snapshot)
+    }
+    entry
+  })
+
+  out
+}
+
 #' @keywords internal
 .eolas_write_manifest <- function(library_dir, dataset, manifest) {
   .manifest_validate(manifest)
@@ -231,9 +291,12 @@
   )
   tmp_path <- paste0(manifest_path, ".tmp-", rand_hex)
 
+  # Encode snapshot ids as strings for full 64-bit integer precision.
+  manifest_for_json <- .manifest_encode_for_json(manifest)
+
   tryCatch({
     writeLines(
-      jsonlite::toJSON(manifest, auto_unbox = TRUE, pretty = TRUE, digits = 22),
+      jsonlite::toJSON(manifest_for_json, auto_unbox = TRUE, pretty = TRUE),
       tmp_path
     )
     ok <- file.rename(tmp_path, manifest_path)

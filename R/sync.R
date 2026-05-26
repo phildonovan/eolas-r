@@ -536,9 +536,15 @@ eolas_sync <- function(name,
 
   # ------------------------------------------------------------------
   # 5. Snapshot unchanged → no-op
+  # Use string comparison to avoid precision loss on 64-bit Iceberg snapshot
+  # ids, which exceed R's double precision (2^53).  The manifest stores
+  # snapshot ids as strings (new R format) or numeric (Python/old R format);
+  # normalise both to character for a lossless comparison.
   # ------------------------------------------------------------------
-  local_snap <- as.numeric(manifest$current_snapshot %||% NA)
-  if (!is.na(local_snap) && local_snap == current_snapshot_id) {
+  local_snap_chr  <- as.character(manifest$current_snapshot %||% "")
+  server_snap_chr <- as.character(current_snapshot_id %||% "")
+  if (nzchar(local_snap_chr) && nzchar(server_snap_chr) &&
+      local_snap_chr == server_snap_chr) {
     return(.new_sync_result(
       status           = "unchanged",
       dataset          = name,
@@ -567,7 +573,10 @@ eolas_sync <- function(name,
   # ------------------------------------------------------------------
   # 7. Attempt incremental delta
   # ------------------------------------------------------------------
-  since_id <- as.numeric(manifest$current_snapshot)
+  # since_id must be the exact integer string for the API query param.
+  # Use the string form from the manifest if available (preserves full
+  # 64-bit precision); fall back to numeric conversion otherwise.
+  since_id <- as.character(manifest$current_snapshot)
   key      <- eolas_get_key_internal()
 
   incremental_url <- paste0(base_url, "/v1/datasets/", name, "/data/incremental")

@@ -217,9 +217,10 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
         name_str <- as.character(name)
         if (!exists(name_str, envir = .eolas_auto_route_notified, inherits = FALSE)) {
           assign(name_str, TRUE, envir = .eolas_auto_route_notified)
+          lib_path <- tryCatch(eolas_resolve_library_dir(), error = function(e) "~/.cache/eolas/")
           message(
             "eolas: auto-routing '", name_str, "' through cache+sync (large/geo dataset).\n",
-            "       Cache lives at ~/.cache/eolas/. Use mode='live' to override."
+            "       Cache lives at ", lib_path, ". Use mode='live' to override."
           )
         }
         as_sf_local <- if (is.null(as_sf)) !isTRUE(as_arrow) else isTRUE(as_sf)
