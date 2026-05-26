@@ -194,6 +194,43 @@ eolas_download_bulk("treasury_fiscal_spending", path = "t.parquet")
 
 Full docs: [docs.eolas.fyi/bulk-downloads/](https://docs.eolas.fyi/bulk-downloads/).
 
+## Sync library — always-fresh local copy
+
+`eolas_sync()` maintains a versioned local copy of a dataset that stays current as new snapshots land on the server. Unlike `eolas_get_local()` (which downloads a single monolithic file), the sync library uses a multi-file directory model: each sync run appends a delta parquet file, and `eolas_get_local()` reads them all as one logical table via `arrow::open_dataset()`.
+
+```r
+# First call: downloads the full snapshot (once).
+# Subsequent calls: download only the rows added since the last sync.
+r <- eolas_sync("doc_huts", library_dir = "~/eolas-library")
+r$status         # "snapshot_full" | "incremental" | "unchanged" | "error"
+r$rows_added     # number of new rows
+r$bytes_downloaded
+
+# Sync multiple datasets in parallel (Unix: mclapply; Windows: sequential).
+results <- eolas_sync_all(
+  library_dir    = "~/eolas-library",
+  datasets       = c("doc_huts", "nz_cpi", "nz_parcels"),
+  max_concurrent = 4L
+)
+vapply(results, `[[`, character(1), "status")   # named status vector
+
+# Auto-discover: syncs every dataset already in the library.
+eolas_sync_all(library_dir = "~/eolas-library")
+
+# Read from the library — fast path: no HTTP call when manifest is present.
+Sys.setenv(EOLAS_LIBRARY = "~/eolas-library")
+df <- eolas_get_local("doc_huts")     # reads from the synced dir, not the API
+```
+
+**Compaction** — after many incremental syncs, use `eolas_compact()` to merge all delta files into a single snapshot parquet (reduces file count and speeds up `open_dataset` reads):
+
+```r
+eolas_compact(library_dir = "~/eolas-library", dataset = "doc_huts")  # one dataset
+eolas_compact(library_dir = "~/eolas-library")                         # all datasets
+```
+
+The sync library format is interoperable with the Python `eolas-data` client: a library synced from Python is readable from R and vice versa.
+
 ## License
 
 MIT
