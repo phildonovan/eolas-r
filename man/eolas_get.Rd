@@ -41,7 +41,10 @@ Cannot be combined with \code{as_sf = TRUE} (stops with an error).
 Requires the \code{arrow} package: \code{install.packages("arrow")}.}
 
 \item{mode}{\code{"auto"} (default), \code{"live"}, or \code{"cached"}. Controls
-smart-routing behaviour; see Description above.}
+smart-routing behaviour; see Description above.  \code{"live"} triggers a
+server-side 413 when the dataset is large/geo and no filter is applied —
+pass \code{limit}, \code{start}, or \code{end} to slice, or use \code{"cached"} for
+whole-dataset access.}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 }
@@ -65,7 +68,12 @@ always used.  Otherwise \code{eolas_info(name)} is called and the result
 routed through \code{\link[=eolas_get_local]{eolas_get_local()}} (cache+sync) when the dataset is
 bulk-eligible and large (>100k rows) or geospatial.  OECD and other
 licence-restricted datasets always fall through to live regardless of size.
-\item \code{"live"}: always use the live API endpoint, bypassing the cache.
+\item \code{"live"}: hit \verb{/v1/datasets/\{name\}/data} directly, bypassing the cache.
+Useful for the freshest data, OECD-licence-restricted sources, or small
+slices of big datasets (e.g. with a \code{limit}, \code{start}, or \code{end} filter).
+\strong{The server returns 413} if you request all rows of a large (>100 k rows)
+or geometry dataset without a filter — use \code{"cached"} (or omit \code{mode})
+for whole-dataset pulls.
 \item \code{"cached"}: always use the cache+sync path (equivalent to calling
 \code{\link[=eolas_get_local]{eolas_get_local()}}).  \code{start}, \code{end}, and \code{limit} are ignored.
 }

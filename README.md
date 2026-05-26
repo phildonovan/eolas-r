@@ -161,7 +161,9 @@ gdf <- eolas_get_linz("nz_parcels")   # sf object in seconds
 df  <- eolas_get("nz_cpi")            # small dataset -> stays on live path
 
 # Escape hatches when you need explicit control:
-gdf <- eolas_get("nz_parcels", mode = "live")      # force live Iceberg scan
+gdf <- eolas_get("nz_parcels", mode = "live")      # force live Iceberg scan (server returns 413
+                                                    # if dataset is large/geo and no filter is set
+                                                    # — apply limit/start/end or use mode="cached")
 gdf <- eolas_get("nz_parcels", mode = "cached")    # force cache+sync (= eolas_get_local)
 ```
 

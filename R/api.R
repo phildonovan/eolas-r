@@ -114,7 +114,12 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #'   routed through [eolas_get_local()] (cache+sync) when the dataset is
 #'   bulk-eligible and large (>100k rows) or geospatial.  OECD and other
 #'   licence-restricted datasets always fall through to live regardless of size.
-#' - `"live"`: always use the live API endpoint, bypassing the cache.
+#' - `"live"`: hit `/v1/datasets/{name}/data` directly, bypassing the cache.
+#'   Useful for the freshest data, OECD-licence-restricted sources, or small
+#'   slices of big datasets (e.g. with a `limit`, `start`, or `end` filter).
+#'   **The server returns 413** if you request all rows of a large (>100 k rows)
+#'   or geometry dataset without a filter — use `"cached"` (or omit `mode`)
+#'   for whole-dataset pulls.
 #' - `"cached"`: always use the cache+sync path (equivalent to calling
 #'   [eolas_get_local()]).  `start`, `end`, and `limit` are ignored.
 #'
@@ -137,7 +142,10 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #'   Cannot be combined with `as_sf = TRUE` (stops with an error).
 #'   Requires the `arrow` package: `install.packages("arrow")`.
 #' @param mode `"auto"` (default), `"live"`, or `"cached"`. Controls
-#'   smart-routing behaviour; see Description above.
+#'   smart-routing behaviour; see Description above.  `"live"` triggers a
+#'   server-side 413 when the dataset is large/geo and no filter is applied —
+#'   pass `limit`, `start`, or `end` to slice, or use `"cached"` for
+#'   whole-dataset access.
 #' @param base_url Override the API base URL (useful for testing).
 #' @return A `eolas_dataset` data frame with `date` coerced to `Date`, or an
 #'   `sf` object when geometry is present and conversion is enabled.  When
