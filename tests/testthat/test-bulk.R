@@ -459,3 +459,66 @@ test_that("eolas_sync_bulk atomic: destination has new content after update", {
   tmp_files <- list.files(tmp, pattern = "\\.eolas-tmp-", full.names = TRUE)
   expect_length(tmp_files, 0L)
 })
+
+# ---------------------------------------------------------------------------
+# .eolas_arrow_wkb_to_sf: handles GeoParquet with mixed full + empty WKB rows.
+# Regression guard against sfarrow's "vapply(x, is.raw, TRUE) are not all TRUE"
+# failure that surfaced on LINZ nz_parcels (21% null geometry rows) — see
+# project_geoparquet_evolution.md memo.
+# ---------------------------------------------------------------------------
+
+test_that(".eolas_arrow_wkb_to_sf handles empty WKB rows without aborting", {
+  skip_if_not_installed("arrow")
+  skip_if_not_installed("sf")
+
+  tmp <- withr::local_tempfile(fileext = ".geo.parquet")
+
+  # Build a tiny GeoParquet: 4 rows — 2 real Points, 2 empty geometries.
+  # Use sf to construct + sfarrow to write so the GeoParquet metadata is
+  # spec-compliant; the empties are introduced via zero-length raw vectors
+  # to mirror what arrives from upstream NULL geometries in our pipeline.
+  pts <- sf::st_sfc(
+    sf::st_point(c(174.7, -36.8)),
+    sf::st_point(c(168.4, -44.8)),
+    crs = 4326
+  )
+  wkb_real <- sf::st_as_binary(pts, EWKB = FALSE)  # list of 2 raw vectors
+
+  # Compose the column: real, empty, real, empty.
+  wkb_col <- list(wkb_real[[1]], raw(0), wkb_real[[2]], raw(0))
+
+  # Write via arrow with a binary geometry column + minimal GeoParquet
+  # metadata block (just enough that read_parquet treats it as binary).
+  tbl <- arrow::arrow_table(
+    name     = c("a", "b", "c", "d"),
+    geometry = arrow::Array$create(wkb_col, type = arrow::binary())
+  )
+  arrow::write_parquet(tbl, tmp)
+
+  result <- .eolas_arrow_wkb_to_sf(tmp)
+
+  expect_s3_class(result, "sf")
+  expect_equal(nrow(result), 4L)
+
+  empty_rows <- sf::st_is_empty(result$geometry)
+  expect_equal(empty_rows, c(FALSE, TRUE, FALSE, TRUE))
+
+  # Decoded points round-trip correctly.
+  decoded <- sf::st_coordinates(result$geometry[!empty_rows])
+  expect_equal(unname(decoded[1, ]), c(174.7, -36.8))
+  expect_equal(unname(decoded[2, ]), c(168.4, -44.8))
+
+  # Other attribute columns are preserved.
+  expect_equal(result$name, c("a", "b", "c", "d"))
+})
+
+test_that(".eolas_arrow_wkb_to_sf errors clearly on missing geometry column", {
+  skip_if_not_installed("arrow")
+  tmp <- withr::local_tempfile(fileext = ".parquet")
+  arrow::write_parquet(arrow::arrow_table(x = 1:3), tmp)
+
+  expect_error(
+    .eolas_arrow_wkb_to_sf(tmp),
+    "no 'geometry' column"
+  )
+})

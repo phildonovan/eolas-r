@@ -93,6 +93,49 @@
   sfarrow::st_read_parquet(file_path)
 }
 
+# Read a `.geo.parquet` via `arrow::read_parquet()` and decode the binary WKB
+# `geometry` column into an `sf` object — handling zero-length WKB elements
+# (empty/null source geometries — e.g. 21% of LINZ nz_parcels) which
+# `sf::st_as_sfc.WKB` would otherwise abort on with
+# "cannot read WKB object from zero-length raw vector".
+#
+# Replaces sfarrow as the primary reader because sfarrow doesn't tolerate
+# empty WKB rows and is also effectively unmaintained (no releases in ~3 yr).
+# Same memory profile as sfarrow when sfarrow works; significantly faster
+# than the WKT-string fallback path. See [[project_geoparquet_evolution]] memo.
+.eolas_arrow_wkb_to_sf <- function(file_path) {
+  tbl <- arrow::read_parquet(file_path)
+  if (!"geometry" %in% names(tbl)) {
+    stop(".eolas_arrow_wkb_to_sf: no 'geometry' column in ", file_path,
+         call. = FALSE)
+  }
+
+  # arrow returns a list-vector of `arrow_binary` raw payloads — convert to
+  # a list of raw vectors (some will be length-0 for NULL source geometries).
+  raw_list <- lapply(tbl$geometry, as.raw)
+  non_empty <- vapply(raw_list, length, integer(1)) > 0L
+
+  # Pre-allocate the sfc with universal-empty geometries, then slot decoded
+  # WKB into the non-empty positions. GEOMETRYCOLLECTION EMPTY is sf's
+  # canonical "valid but empty" sentinel and is type-agnostic.
+  geom_list <- vector("list", length(raw_list))
+  if (any(!non_empty)) {
+    geom_list[!non_empty] <- list(sf::st_geometrycollection())
+  }
+  if (any(non_empty)) {
+    decoded <- sf::st_as_sfc(
+      structure(raw_list[non_empty], class = "WKB"),
+      crs = 4326
+    )
+    geom_list[non_empty] <- decoded
+  }
+  sfc <- sf::st_sfc(geom_list, crs = 4326)
+
+  # Drop the binary column from the attribute table, attach the decoded sfc
+  attrs <- as.data.frame(tbl[, setdiff(names(tbl), "geometry"), drop = FALSE])
+  sf::st_sf(attrs, geometry = sfc)
+}
+
 # Sidecar schema version — bump if the JSON structure changes incompatibly.
 .SIDECAR_SCHEMA_VERSION <- 1L
 
@@ -811,9 +854,29 @@ eolas_get_local <- function(name,
   }
 
   if (fmt == "geoparquet" && isTRUE(as_sf_resolved)) {
-    # Try sfarrow first (reads GeoParquet natively), then sf via a temp copy.
+    # Reader strategy (2026-05-27): try arrow + empty-aware WKB conversion
+    # first (handles empty/null geometries which sfarrow aborts on); fall
+    # back to sfarrow for older R installs without arrow; final fallback
+    # is the WKT-string variant. See [[project_geoparquet_evolution]].
+    primary_err <- NULL
+    if (requireNamespace("arrow", quietly = TRUE) &&
+        requireNamespace("sf",    quietly = TRUE)) {
+      result <- tryCatch(
+        .eolas_arrow_wkb_to_sf(file_path),
+        error = function(e) {
+          primary_err <<- e
+          NULL
+        }
+      )
+      if (!is.null(result)) return(result)
+    }
+
+    # Last-resort sfarrow attempt (in case arrow isn't installed). sfarrow
+    # is effectively dead upstream and known to fail on any GeoParquet with
+    # zero-length WKB elements, but on Point-only datasets with no empties
+    # it still works, so it's a reasonable safety net.
     if (requireNamespace("sfarrow", quietly = TRUE)) {
-      sfarrow_err <- NULL
+      sfarrow_err <- primary_err
       result <- tryCatch(
         .eolas_sfarrow_read_parquet(file_path),
         error = function(e) {
@@ -829,13 +892,15 @@ eolas_get_local <- function(name,
       # then promote it to sf via sf::st_as_sf().
       if (requireNamespace("cli", quietly = TRUE)) {
         cli::cli_warn(paste0(
-          "GeoParquet read failed; fell back to WKT path. ",
-          "This dataset's bulk artifact will self-heal at the next monthly refresh."
+          "Both arrow+WKB and sfarrow readers failed on the GeoParquet; ",
+          "falling back to WKT string path. Returned data is correct; ",
+          "this is just the slower read path."
         ))
       } else {
         warning(
-          "GeoParquet read failed; fell back to WKT path. ",
-          "This dataset's bulk artifact will self-heal at the next monthly refresh.",
+          "Both arrow+WKB and sfarrow readers failed on the GeoParquet; ",
+          "falling back to WKT string path. Returned data is correct; ",
+          "this is just the slower read path.",
           call. = FALSE
         )
       }
