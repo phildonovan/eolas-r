@@ -60,11 +60,10 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 .eolas_nag_arrow_once <- function() {
   if (isTRUE(.eolas_runtime$arrow_nagged)) return(invisible())
   .eolas_runtime$arrow_nagged <- TRUE
-  message(
-    "eolas: using the slower JSON transport. Install the 'arrow' package for ",
-    "much faster downloads (measured ~5x faster end-to-end, ~82x faster parse ",
-    "on large datasets):\n  install.packages(\"arrow\")"
-  )
+  cli::cli_alert_info(c(
+    "Using the slower JSON transport.",
+    "i" = "Install {.pkg arrow} for {.strong much faster} downloads (~5× end-to-end, ~82× parse on large datasets): {.run install.packages(\"arrow\")}"
+  ))
 }
 
 # Internal: fetch dataset rows as a data.frame. Negotiates Arrow IPC over the
@@ -218,10 +217,10 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
         if (!exists(name_str, envir = .eolas_auto_route_notified, inherits = FALSE)) {
           assign(name_str, TRUE, envir = .eolas_auto_route_notified)
           lib_path <- tryCatch(eolas_resolve_library_dir(), error = function(e) "~/.cache/eolas/")
-          message(
-            "eolas: auto-routing '", name_str, "' through cache+sync (large/geo dataset).\n",
-            "       Cache lives at ", lib_path, ". Use mode='live' to override."
-          )
+          cli::cli_alert_info(c(
+            "Auto-routing {.val {name_str}} through cache+sync (large/geo dataset).",
+            "i" = "Cache lives at {.path {lib_path}}. Use {.code mode = \"live\"} to override."
+          ))
         }
         as_sf_local <- if (is.null(as_sf)) !isTRUE(as_arrow) else isTRUE(as_sf)
         return(eolas_get_local(name, as_sf = as_sf_local, as_arrow = as_arrow,
@@ -348,11 +347,12 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   n_blank <- sum(blank)
   n_bad   <- sum(bad)
   if (n_blank || n_bad) {
-    warning(sprintf(
-      paste0("eolas: %d of %d row(s) had no usable geometry ",
-             "(%d empty/null, %d unparseable WKT) and were returned with ",
-             "EMPTY geometry. Filter with !sf::st_is_empty(x) if needed."),
-      n_blank + n_bad, length(raw), n_blank, n_bad), call. = FALSE)
+    n_missing <- n_blank + n_bad
+    n_total   <- length(raw)
+    cli::cli_warn(c(
+      "{.val {n_missing}} of {.val {n_total}} row(s) had no usable geometry ({.val {n_blank}} empty/null, {.val {n_bad}} unparseable WKT) and were returned with {.strong EMPTY} geometry.",
+      "i" = "Filter with {.code !sf::st_is_empty(x)} if needed."
+    ))
   }
 
   plain[["geometry_wkt"]] <- NULL

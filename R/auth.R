@@ -83,10 +83,10 @@ eolas_key_save <- function(key = NULL) {
   }
 
   if (is.null(key) || !nzchar(key)) {
-    message(
-      "No key provided. ",
-      "You can also set EOLAS_API_KEY in ~/.Renviron instead."
-    )
+    cli::cli_alert_warning(c(
+      "No key provided.",
+      "i" = "You can also set {.envvar EOLAS_API_KEY} in {.path ~/.Renviron} instead."
+    ))
     return(invisible(NULL))
   }
 
@@ -95,9 +95,10 @@ eolas_key_save <- function(key = NULL) {
     username = .KEYRING_USERNAME,
     password = key
   )
-  message(
-    "Saved key ", .mask_key(key),
-    " to OS keyring (service = ", dQuote(.KEYRING_SERVICE), ")"
+  masked <- .mask_key(key)
+  service <- .KEYRING_SERVICE
+  cli::cli_alert_success(
+    "Saved key {.field {masked}} to OS keyring (service {.val {service}})"
   )
   invisible(NULL)
 }
@@ -123,10 +124,10 @@ eolas_key_clear <- function() {
   tryCatch(
     {
       keyring::key_delete(.KEYRING_SERVICE, username = .KEYRING_USERNAME)
-      message("Cleared eolas API key from OS keyring.")
+      cli::cli_alert_success("Cleared eolas API key from OS keyring.")
     },
     error = function(e) {
-      message("No eolas API key found in OS keyring (nothing to clear).")
+      cli::cli_alert_info("No eolas API key found in OS keyring (nothing to clear).")
     }
   )
   invisible(NULL)
@@ -153,41 +154,42 @@ eolas_key_clear <- function() {
 eolas_key_status <- function() {
   session_key <- .eolas_env$key
   if (!is.null(session_key) && nzchar(session_key)) {
-    msg <- paste0(
-      "key:    ", .mask_key(session_key), "\n",
-      "source: in-session (eolas_key(...))"
-    )
-    message(msg)
+    masked <- .mask_key(session_key)
+    cli::cli_inform(c(
+      "key:    {.field {masked}}",
+      "source: in-session ({.fn eolas_key})"
+    ))
     return(invisible("session"))
   }
 
   env_key <- Sys.getenv("EOLAS_API_KEY", unset = "")
   if (nzchar(env_key)) {
-    msg <- paste0(
-      "key:    ", .mask_key(env_key), "\n",
-      "source: env EOLAS_API_KEY"
-    )
-    message(msg)
+    masked <- .mask_key(env_key)
+    cli::cli_inform(c(
+      "key:    {.field {masked}}",
+      "source: env {.envvar EOLAS_API_KEY}"
+    ))
     return(invisible("env"))
   }
 
   kr_key <- .keyring_get()
   if (nzchar(kr_key)) {
-    msg <- paste0(
-      "key:    ", .mask_key(kr_key), "\n",
-      "source: OS keyring (service = ", dQuote(.KEYRING_SERVICE), ")"
-    )
-    message(msg)
+    masked <- .mask_key(kr_key)
+    service <- .KEYRING_SERVICE
+    cli::cli_inform(c(
+      "key:    {.field {masked}}",
+      "source: OS keyring (service {.val {service}})"
+    ))
     return(invisible("keyring"))
   }
 
-  message(
-    "No API key configured.\n",
-    "Options:\n",
-    "  eolas_key_save()                         # OS keyring (recommended for workstations)\n",
-    "  eolas_key(\"vs_...\")                    # in-session only\n",
-    "  Sys.setenv(EOLAS_API_KEY = \"vs_...\")   # environment variable"
-  )
+  cli::cli_alert_warning("No API key configured.")
+  cli::cli_inform(c(
+    "Options:",
+    "*" = "{.run eolas::eolas_key_save()} — OS keyring (recommended for workstations)",
+    "*" = "{.run [eolas_key()](eolas::eolas_key())} — in-session only",
+    "*" = "{.code Sys.setenv(EOLAS_API_KEY = \"vs_...\")} — environment variable"
+  ))
   invisible("none")
 }
 

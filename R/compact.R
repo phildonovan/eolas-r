@@ -374,7 +374,7 @@ eolas_compact <- function(dataset_dir = NULL,
   }, subdirs)
 
   if (length(synced) == 0L) {
-    message("eolas_compact(): no synced datasets found in ", lib)
+    cli::cli_alert_info("{.fn eolas_compact}: no synced datasets found in {.path {lib}}")
     return(invisible(list()))
   }
 
@@ -382,10 +382,9 @@ eolas_compact <- function(dataset_dir = NULL,
     tryCatch(
       .compact_one_dataset(d),
       error = function(e) {
-        warning(paste0(
-          "eolas_compact(): compact failed for ", basename(d), ": ",
-          conditionMessage(e)
-        ), call. = FALSE)
+        dataset <- basename(d)
+        msg <- conditionMessage(e)
+        cli::cli_warn("{.fn eolas_compact}: compact failed for {.val {dataset}}: {msg}")
         NULL
       }
     )

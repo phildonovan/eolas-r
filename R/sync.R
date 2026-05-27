@@ -81,11 +81,11 @@
     df <- tryCatch(
       .eolas_to_sf(df, force = FALSE),
       error = function(e) {
-        warning(paste0(
-          "eolas: sf conversion failed for '", name, "'; ",
-          "returning plain data.frame with geometry_wkt column. ",
-          conditionMessage(e)
-        ), call. = FALSE)
+        msg <- conditionMessage(e)
+        cli::cli_warn(c(
+          "sf conversion failed for {.val {name}}; returning plain {.cls data.frame} with {.field geometry_wkt} column.",
+          "x" = "{msg}"
+        ))
         df
       }
     )
@@ -521,8 +521,7 @@ eolas_sync <- function(name,
   # 4. Server didn't return snapshot id → conservative full download
   # ------------------------------------------------------------------
   if (is.null(current_snapshot_id)) {
-    message("eolas_sync(", name, "): server did not return current_snapshot_id; ",
-            "falling back to full download.")
+    cli::cli_alert_info("{.fn eolas_sync}({.val {name}}): server did not return current_snapshot_id; falling back to full download.")
     return(.sync_do_full_download(
       name        = name,
       meta        = meta,
@@ -799,10 +798,10 @@ eolas_sync_all <- function(library_dir  = NULL,
     parallel::mclapply(idx, .sync_one, mc.cores = min(max_concurrent, total))
   } else {
     if (.Platform$OS.type == "windows" && max_concurrent > 1L) {
-      message(
-        "eolas: parallel::mclapply() is not supported on Windows. ",
-        "Running eolas_sync_all() sequentially."
-      )
+      cli::cli_alert_info(c(
+        "{.fn parallel::mclapply} is not supported on Windows.",
+        "i" = "Running {.fn eolas_sync_all} sequentially."
+      ))
     }
     lapply(idx, .sync_one)
   }

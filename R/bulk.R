@@ -989,10 +989,10 @@ eolas_get_local <- function(name,
       return(sf::st_read(file_path, quiet = TRUE))
     }
     # Neither sf nor sfarrow available — fall through to plain read below.
-    message(
-      "eolas: sf or sfarrow package needed to return a GeoParquet as an sf object. ",
-      "Install with install.packages(\"sf\"). Returning plain data.frame."
-    )
+    cli::cli_alert_info(c(
+      "{.pkg sf} or {.pkg sfarrow} needed to return a GeoParquet as an {.cls sf} object.",
+      "i" = "Install with {.run install.packages(\"sf\")}. Returning plain {.cls data.frame}."
+    ))
   }
 
   # Plain read paths.

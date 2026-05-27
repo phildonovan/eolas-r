@@ -101,11 +101,11 @@
       " " = "or run interactively and the package will prompt you."
     ))
   } else {
-    message(
-      "i eolas: using ~/.cache/eolas/ (transient OS cache).\n",
-      "  For persistent storage, set EOLAS_LIBRARY=/path/to/lib\n",
-      "  or run interactively and the package will prompt you."
-    )
+    cli::cli_alert_info(c(
+      "Using {.path ~/.cache/eolas/} (transient OS cache).",
+      "i" = "For persistent storage, set {.envvar EOLAS_LIBRARY}{.code =/path/to/lib}",
+      "i" = "or run interactively and the package will prompt you."
+    ))
   }
 }
 
@@ -208,8 +208,11 @@ eolas_library_set <- function(path) {
   }
   resolved <- normalizePath(path.expand(path), mustWork = FALSE)
   .eolas_write_config_key("library_dir", resolved)
-  message("eolas: library_dir set to ", resolved,
-          "\n  config file: ", .eolas_config_file())
+  cfg <- .eolas_config_file()
+  cli::cli_alert_success(c(
+    "library_dir set to {.path {resolved}}",
+    "i" = "config file: {.path {cfg}}"
+  ))
   invisible(resolved)
 }
 
@@ -249,14 +252,18 @@ eolas_library_status <- function() {
     source_key <- "fallback"
   }
 
-  message("library: ", resolved, "\nsource:  ", source_label)
+  cli::cli_inform(c(
+    "library: {.path {resolved}}",
+    "source:  {source_label}"
+  ))
 
   if (source_key == "fallback") {
-    message(
-      "\nTo set a persistent library:\n",
-      "  eolas_library_set(\"~/eolas-library\")\n",
-      "  Sys.setenv(EOLAS_LIBRARY = \"/path/to/lib\")"
-    )
+    cli::cli_inform(c(
+      "",
+      "To set a persistent library:",
+      "*" = "{.run [eolas_library_set(\"~/eolas-library\")](eolas::eolas_library_set())}",
+      "*" = "{.code Sys.setenv(EOLAS_LIBRARY = \"/path/to/lib\")}"
+    ))
   }
 
   invisible(list(
@@ -283,6 +290,7 @@ eolas_library_status <- function() {
 #' }
 eolas_library_clear <- function() {
   .eolas_remove_config_key("library_dir")
-  message("eolas: library_dir removed from ", .eolas_config_file())
+  cfg <- .eolas_config_file()
+  cli::cli_alert_success("library_dir removed from {.path {cfg}}")
   invisible(NULL)
 }
