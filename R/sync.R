@@ -498,7 +498,9 @@ eolas_sync <- function(name,
     NULL
   }
 
-  incremental_supported <- isTRUE(meta$incremental_supported %||% TRUE)
+  # Fail-safe default FALSE (matches server catalog default): incremental is opt-in.
+  # If metadata omits the field, do not attempt a delta — fall back to full bulk.
+  incremental_supported <- isTRUE(meta$incremental_supported %||% FALSE)
   fmt <- .sync_detect_format(meta)
   dataset_dir <- file.path(lib, name)
 
