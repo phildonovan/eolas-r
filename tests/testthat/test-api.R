@@ -35,6 +35,12 @@ test_that("eolas_get_key_internal reads EOLAS_API_KEY env var when no session ke
 test_that("eolas_get_key_internal errors when no key set anywhere", {
   ns <- getNamespace("eolas")
   assign("key", NULL, envir = ns$.eolas_env)
+  # Mock the keyring + config-file fallbacks to empty so the test is hermetic
+  # regardless of the dev machine's real keyring entry / ~/.eolas/config.json.
+  testthat::local_mocked_bindings(
+    .keyring_get = function() "",
+    .config_file_get_key = function() ""
+  )
   withr::with_envvar(c(EOLAS_API_KEY = ""), {
     expect_error(ns$eolas_get_key_internal(), "No API key found")
   })

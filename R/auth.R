@@ -142,6 +142,7 @@ eolas_key_clear <- function() {
 #' 1. In-session key set by [eolas_key()]
 #' 2. `EOLAS_API_KEY` environment variable
 #' 3. OS keyring (via the `keyring` package)
+#' 4. `~/.eolas/config.json` (as written by the Python CLI `eolas auth set-key`)
 #'
 #' @return A character string describing the key source (invisibly). Primarily
 #'   called for its side-effect of printing a status message.
@@ -183,6 +184,16 @@ eolas_key_status <- function() {
     return(invisible("keyring"))
   }
 
+  cfg_key <- .config_file_get_key()
+  if (nzchar(cfg_key)) {
+    masked <- .mask_key(cfg_key)
+    cli::cli_inform(c(
+      "key:    {.field {masked}}",
+      "source: config file ({.path ~/.eolas/config.json})"
+    ))
+    return(invisible("config"))
+  }
+
   cli::cli_alert_warning("No API key configured.")
   cli::cli_inform(c(
     "Options:",
@@ -199,11 +210,29 @@ eolas_key_status <- function() {
   paste0(substr(key, 1, 8), "…")
 }
 
+# Internal: read api_key from ~/.eolas/config.json (the slot the Python CLI's
+# `eolas auth set-key` writes). Returns "" when absent/unreadable. The OS
+# keyring is the preferred cross-language slot; this is a fallback so a key set
+# only via the Python CLI is still found in R.
+.config_file_get_key <- function() {
+  cfg_path <- .eolas_config_file()
+  if (!file.exists(cfg_path)) return("")
+  tryCatch(
+    {
+      cfg <- jsonlite::fromJSON(readLines(cfg_path, warn = FALSE), simplifyVector = TRUE)
+      val <- cfg[["api_key"]] %||% ""
+      if (is.null(val) || !nzchar(val)) "" else as.character(val)
+    },
+    error = function(e) ""
+  )
+}
+
 eolas_get_key_internal <- function() {
-  # Precedence: in-session key → EOLAS_API_KEY env var → OS keyring → error
+  # Precedence: in-session → EOLAS_API_KEY → OS keyring → ~/.eolas/config.json → error
   key <- .eolas_env$key %||%
          Sys.getenv("EOLAS_API_KEY", unset = "") %or_empty%
-         .keyring_get()
+         .keyring_get() %or_empty%
+         .config_file_get_key()
   if (is.null(key) || !nzchar(key)) {
     stop(
       "No API key found. ",

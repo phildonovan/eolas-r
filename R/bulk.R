@@ -1000,14 +1000,9 @@ eolas_get_local <- function(name,
     return(utils::read.csv(gzfile(file_path), stringsAsFactors = FALSE))
   }
 
-  # parquet or geoparquet-without-sf: use arrow if available, else error.
-  if (requireNamespace("arrow", quietly = TRUE)) {
-    return(as.data.frame(arrow::read_parquet(file_path)))
-  }
-
-  stop(
-    "The `arrow` package is required to read Parquet files in R. ",
-    "Install with: install.packages(\"arrow\")",
-    call. = FALSE
-  )
+  # parquet or geoparquet-without-sf. arrow is a hard dependency (it's on the
+  # default bulk/large-dataset read path), but check_installed still gives a
+  # clean, install-offering message if the user's arrow build is broken.
+  rlang::check_installed("arrow", reason = "to read Parquet data from eolas")
+  as.data.frame(arrow::read_parquet(file_path))
 }
