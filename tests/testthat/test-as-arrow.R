@@ -158,69 +158,6 @@ test_that("eolas_get stops with clear error when as_arrow=TRUE and as_sf=TRUE", 
 })
 
 # ---------------------------------------------------------------------------
-# eolas_get(): as_arrow via smart-routing (mode="auto") cache path
-# ---------------------------------------------------------------------------
-
-test_that("eolas_get auto-routing with as_arrow=TRUE returns arrow::Table", {
-  tmp <- withr::local_tempdir()
-  geo_parquet_path <- file.path(tmp, "nz_parcels.geo.parquet")
-  df_geo <- data.frame(id = 1L, geometry_wkt = "POINT (174.76 -36.85)",
-                       stringsAsFactors = FALSE)
-  write_test_parquet(geo_parquet_path, df_geo)
-
-  ns <- getNamespace("eolas")
-  assign("key", "eolas_testkey", envir = ns$.eolas_env)
-
-  local_mocked_bindings(
-    eolas_info = function(n, base_url = NULL) {
-      jsonlite::fromJSON(DATASET_META_GEO, simplifyVector = FALSE)
-    },
-    eolas_sync_bulk = function(n, path, format, freshness, base_url = NULL, ...) {
-      fake_sync_result(path)
-    },
-    eolas_resolve_library_dir = function() tmp,
-    .env = ns
-  )
-
-  # Suppress the auto-routing message
-  suppressMessages(
-    result <- eolas_get("nz_parcels", as_arrow = TRUE)
-  )
-
-  expect_true(inherits(result, "ArrowTabular"))
-  expect_true("geometry_wkt" %in% names(result))
-})
-
-# ---------------------------------------------------------------------------
-# eolas_get(): as_arrow via mode="cached" explicit
-# ---------------------------------------------------------------------------
-
-test_that("eolas_get with mode='cached' and as_arrow=TRUE returns arrow::Table", {
-  tmp <- withr::local_tempdir()
-  parquet_path <- file.path(tmp, "nz_cpi.parquet")
-  df_orig <- data.frame(date = "2023-01-01", value = 1100.5, stringsAsFactors = FALSE)
-  write_test_parquet(parquet_path, df_orig)
-
-  ns <- getNamespace("eolas")
-  assign("key", "eolas_testkey", envir = ns$.eolas_env)
-
-  local_mocked_bindings(
-    eolas_info = function(n, base_url = NULL) {
-      jsonlite::fromJSON(DATASET_META_NON_GEO, simplifyVector = FALSE)
-    },
-    eolas_sync_bulk = function(n, path, format, freshness, base_url = NULL, ...) {
-      fake_sync_result(path)
-    },
-    eolas_resolve_library_dir = function() tmp,
-    .env = ns
-  )
-
-  result <- eolas_get("nz_cpi", as_arrow = TRUE, mode = "cached")
-
-  expect_true(inherits(result, "ArrowTabular"))
-})
-
-# ---------------------------------------------------------------------------
 # eolas_get(): as_arrow on the live path
 # ---------------------------------------------------------------------------
 
@@ -235,40 +172,29 @@ test_that("eolas_get live path with as_arrow=TRUE returns arrow::Table", {
     .env = ns
   )
 
-  result <- eolas_get("nz_cpi", as_arrow = TRUE, mode = "live")
+  result <- eolas_get("nz_cpi", as_arrow = TRUE)
 
   expect_true(inherits(result, "ArrowTabular"))
   expect_true("value" %in% names(result))
 })
 
 # ---------------------------------------------------------------------------
-# Source helper: eolas_get_linz() with as_arrow=TRUE
+# Source helper: eolas_get_linz() with as_arrow=TRUE (live path)
 # ---------------------------------------------------------------------------
 
 test_that("eolas_get_linz with as_arrow=TRUE returns arrow::Table", {
-  tmp <- withr::local_tempdir()
-  geo_parquet_path <- file.path(tmp, "nz_parcels.geo.parquet")
-  df_geo <- data.frame(id = 1L, geometry_wkt = "POINT (174.76 -36.85)",
-                       stringsAsFactors = FALSE)
-  write_test_parquet(geo_parquet_path, df_geo)
-
   ns <- getNamespace("eolas")
   assign("key", "eolas_testkey", envir = ns$.eolas_env)
 
   local_mocked_bindings(
-    eolas_info = function(n, base_url = NULL) {
-      jsonlite::fromJSON(DATASET_META_GEO, simplifyVector = FALSE)
+    .eolas_fetch_df = function(name, params, base_url) {
+      data.frame(id = 1L, geometry_wkt = "POINT (174.76 -36.85)",
+                 stringsAsFactors = FALSE)
     },
-    eolas_sync_bulk = function(n, path, format, freshness, base_url = NULL, ...) {
-      fake_sync_result(path)
-    },
-    eolas_resolve_library_dir = function() tmp,
     .env = ns
   )
 
-  suppressMessages(
-    result <- eolas_get_linz("nz_parcels", as_arrow = TRUE)
-  )
+  result <- eolas_get_linz("nz_parcels", as_arrow = TRUE)
 
   expect_true(inherits(result, "ArrowTabular"))
 })

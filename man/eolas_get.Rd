@@ -11,7 +11,6 @@ eolas_get(
   limit = NULL,
   as_sf = NULL,
   as_arrow = FALSE,
-  mode = "auto",
   base_url = EOLAS_BASE_URL
 )
 }
@@ -36,47 +35,22 @@ Install with \code{install.packages("sf")}. Cannot be combined with
 \item{as_arrow}{When \code{TRUE}, return an \code{arrow::Table} instead of a
 \code{data.frame} or \code{sf} object.  Geometry stays as Arrow buffers
 (zero-copy, no sf allocation) — suitable for DuckDB / dplyr pipelines.
-Works on every dataset (geo or non-geo) and every routing mode.
-Cannot be combined with \code{as_sf = TRUE} (stops with an error).
-Requires the \code{arrow} package: \code{install.packages("arrow")}.}
-
-\item{mode}{\code{"auto"} (default), \code{"live"}, or \code{"cached"}. Controls
-smart-routing behaviour; see Description above.  \code{"live"} triggers a
-server-side 413 when the dataset is large/geo and no filter is applied —
-pass \code{limit}, \code{start}, or \code{end} to slice, or use \code{"cached"} for
-whole-dataset access.}
+Works on every dataset. Cannot be combined with \code{as_sf = TRUE} (stops
+with an error). Requires the \code{arrow} package: \code{install.packages("arrow")}.}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 }
 \value{
 A \code{eolas_dataset} data frame with \code{date} coerced to \code{Date}, or an
-\code{sf} object when geometry is present and conversion is enabled.  When
-routed through the cache+sync path (\code{"auto"} for large/geo datasets, or
-\code{"cached"}), the return value is a plain \code{data.frame} or \code{sf} object as
-returned by \code{\link[=eolas_get_local]{eolas_get_local()}}.
+\code{sf} object when geometry is present and conversion is enabled.
 }
 \description{
 The generic workhorse — use \code{\link[=eolas_get_statsnz]{eolas_get_statsnz()}}, \code{\link[=eolas_get_oecd]{eolas_get_oecd()}} etc. for
 source-tagged results and a nicer print output.
 }
 \details{
-The \code{mode} parameter controls which data path is used:
-\itemize{
-\item \code{"auto"} (default): smart-routes based on dataset metadata.
-If any slice argument (\code{start}, \code{end}, \code{limit}) is set the live API is
-always used.  Otherwise \code{eolas_info(name)} is called and the result
-routed through \code{\link[=eolas_get_local]{eolas_get_local()}} (cache+sync) when the dataset is
-bulk-eligible and large (>100k rows) or geospatial.  OECD and other
-licence-restricted datasets always fall through to live regardless of size.
-\item \code{"live"}: hit \verb{/v1/datasets/\{name\}/data} directly, bypassing the cache.
-Useful for the freshest data, OECD-licence-restricted sources, or small
-slices of big datasets (e.g. with a \code{limit}, \code{start}, or \code{end} filter).
-\strong{The server returns 413} if you request all rows of a large (>100 k rows)
-or geometry dataset without a filter — use \code{"cached"} (or omit \code{mode})
-for whole-dataset pulls.
-\item \code{"cached"}: always use the cache+sync path (equivalent to calling
-\code{\link[=eolas_get_local]{eolas_get_local()}}).  \code{start}, \code{end}, and \code{limit} are ignored.
-}
+Hits the live \verb{/v1/datasets/\{name\}/data} endpoint.  Use \code{\link[=eolas_download_bulk]{eolas_download_bulk()}}
+or \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}} for large datasets or whole-dataset pulls.
 }
 \examples{
 \dontrun{
@@ -84,14 +58,5 @@ eolas_key("your_key")
 df <- eolas_get("nz_cpi", start = "2020-01-01")
 library(ggplot2)
 ggplot(df, aes(date, value)) + geom_line()
-
-# Smart-routing: nz_parcels auto-routes to cache+sync in seconds
-gdf <- eolas_get("nz_parcels")
-
-# Force live even for large datasets
-gdf <- eolas_get("nz_parcels", mode = "live")
-
-# Force cache+sync explicitly (same as eolas_get_local)
-gdf <- eolas_get("nz_parcels", mode = "cached")
 }
 }

@@ -20,6 +20,7 @@ Precedence:
 \item In-session key set by \code{\link[=eolas_key]{eolas_key()}}
 \item \code{EOLAS_API_KEY} environment variable
 \item OS keyring (via the \code{keyring} package)
+\item \verb{~/.eolas/config.json} (as written by the Python CLI \verb{eolas auth set-key})
 }
 }
 \examples{

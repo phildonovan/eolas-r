@@ -771,32 +771,6 @@ eolas_get_local <- function(name,
   # Resolve as_sf NULL → default TRUE unless as_arrow overrides.
   as_sf_resolved <- if (!is.null(as_sf)) as_sf else !isTRUE(as_arrow)
 
-  # ---- sync-library fast path ----------------------------------------------
-  # When a mode= override is NOT in play (this is called from eolas_get() with
-  # mode="cached" or mode="auto"), check whether the dataset has already been
-  # synced to the library via eolas_sync().  The sync library uses
-  # _eolas-manifest.json + a directory of parquet files (multi-file model)
-  # which Arrow can read natively as a single logical table.
-  #
-  # Priority: explicit cache_dir= skips the sync-library check entirely (the
-  # caller is explicitly asking for the single-file bulk path).  When cache_dir
-  # is NULL we check the resolved library for a sync manifest first.
-  if (is.null(cache_dir)) {
-    lib_for_sync <- eolas_resolve_library_dir()
-    sync_manifest <- tryCatch(
-      .eolas_read_manifest(lib_for_sync, name),
-      error = function(e) NULL
-    )
-    if (!is.null(sync_manifest)) {
-      return(.eolas_read_from_sync_library(
-        name           = name,
-        library_dir    = lib_for_sync,
-        as_sf          = as_sf_resolved,
-        as_arrow       = as_arrow
-      ))
-    }
-  }
-
   # ---- resolve cache_dir ---------------------------------------------------
   # Explicit cache_dir= wins (Step 1 of the precedence chain).
   # NULL triggers the library resolver (Steps 2-5).
