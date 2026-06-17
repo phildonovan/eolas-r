@@ -29,11 +29,15 @@ eolas_list <- function(source = NULL, base_url = EOLAS_BASE_URL) {
 
 
 .eolas_search_aliases <- list(
-  hlfs = c("hlfs", "household labour", "labour force survey", "labour force",
-           "labour market", "unemployment rate"),
-  ocr  = c("ocr", "official cash rate", "cash rate"),
-  cpi  = c("cpi", "consumer price", "inflation", "prices")
+  hlfs    = c("hlfs", "household labour", "labour force survey", "labour force",
+              "labour market", "unemployment rate"),
+  ocr     = c("ocr", "official cash rate", "cash rate"),
+  cpi     = c("cpi", "consumer price", "inflation", "prices"),
+  kapiti  = c("kapiti", "kcdc_", "kapiti coast"),
+  porirua = c("porirua", "pcc_")
 )
+
+.eolas_search_name_only <- c("hlfs", "kapiti", "porirua")
 
 .eolas_search_rank <- list(
   cpi  = c(rbnz_m1_prices = 0L, rbnz_m1_prices_longrun = 1L, nz_cpi = 2L),
@@ -95,7 +99,8 @@ eolas_search <- function(query, source = NULL, base_url = EOLAS_BASE_URL) {
   if (!length(needles)) {
     return(tibble::as_tibble(df[0, , drop = FALSE]))
   }
-  out <- tibble::as_tibble(df[.eolas_search_mask(df, needles, search_description = rank_key != "hlfs"), , drop = FALSE])
+  name_only <- rank_key %in% .eolas_search_name_only
+  out <- tibble::as_tibble(df[.eolas_search_mask(df, needles, search_description = !name_only), , drop = FALSE])
   if (nrow(out) && "name" %in% names(out) && rank_key %in% names(.eolas_search_rank)) {
     priority <- .eolas_search_rank[[rank_key]]
     ord <- order(ifelse(out$name %in% names(priority), priority[out$name], 99L))
