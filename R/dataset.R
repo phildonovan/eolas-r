@@ -1,10 +1,12 @@
 # eolas_dataset S3 class — a data frame with name/source metadata attached
 
-new_eolas_dataset <- function(df, name, source = NULL) {
-  structure(df,
-    eolas_name = name,
-    eolas_source = source,
-    class     = c("eolas_dataset", class(df))
+new_eolas_dataset <- function(df, name, source = NULL, meta_info = NULL) {
+  if (!inherits(df, "tbl_df")) {
+    df <- tibble::as_tibble(df)
+  }
+  structure(
+    .eolas_attach_dataset_meta(df, name = name, source = source, meta_info = meta_info),
+    class = c("eolas_dataset", class(df))
   )
 }
 
@@ -12,11 +14,13 @@ new_eolas_dataset <- function(df, name, source = NULL) {
 print.eolas_dataset <- function(x, ...) {
   name   <- attr(x, "eolas_name")
   source <- attr(x, "eolas_source")
-  header <- paste0("# eolas_dataset: ", name)
-  if (!is.null(source) && nchar(source) > 0)
-    header <- paste0(header, " [", source, "]")
-  cat(header, "\n")
-  cat(sprintf("# %d rows\n", nrow(x)))
+  label  <- paste0("eolas_dataset: ", name)
+  if (!is.null(source) && nchar(source) > 0) {
+    label <- paste0(label, " [", source, "]")
+  }
+  cli::cli_h1(label)
+  .eolas_print_meta_subtitle(x)
+  cli::cli_text("{.emph {nrow(x)} row{?s}}")
   class(x) <- setdiff(class(x), "eolas_dataset")
   print(x, ...)
   invisible(x)

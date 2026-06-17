@@ -1,48 +1,7 @@
 library(testthat)
-library(httr2)
 
-# ---------------------------------------------------------------------------
-# Progress bar behaviour — tests for .eolas_resolve_progress() and
-# progress-kwarg plumbing in eolas_download_bulk / eolas_sync_bulk.
-# ---------------------------------------------------------------------------
-
-FAKE_PARQUET <- c(charToRaw("PAR1"), as.raw(rep(0L, 12)), charToRaw("PAR1"))
-
-BULK_META_JSON <- jsonlite::toJSON(
-  list(name = "nz_cpi", title = "NZ CPI", source = "Stats NZ",
-       namespace = "statsnz", table = "nz_cpi"),
-  auto_unbox = TRUE
-)
-
-# Build a fake httr2_response list.
-# httr2 1.x resp_body_json() checks resp$cache (must be an environment).
-fake_resp <- function(status = 200L, body = FAKE_PARQUET,
-                      content_type = "application/octet-stream",
-                      extra_headers = list()) {
-  headers_list <- c(
-    list(`content-type` = content_type,
-         `content-length` = as.character(length(body))),
-    extra_headers
-  )
-  structure(
-    list(method = "GET", url = "https://api.eolas.fyi/test",
-         status_code = status,
-         headers = structure(headers_list, class = "httr2_headers"),
-         body = body,
-         cache = new.env(parent = emptyenv())),
-    class = "httr2_response"
-  )
-}
-
-fake_meta_resp <- function() {
-  fake_resp(200L, charToRaw(BULK_META_JSON), "application/json")
-}
-
-# Set up the package-internal API key so all mocked calls succeed.
-set_test_key <- function() {
-  ns <- getNamespace("eolas")
-  assign("key", "eolas_testkey", envir = ns$.eolas_env)
-}
+# Progress bar behaviour — .eolas_resolve_progress() and download_bulk plumbing.
+# Shared constants + set_test_key() live in helper.R.
 
 # ---------------------------------------------------------------------------
 # .eolas_resolve_progress — unit tests
@@ -135,19 +94,9 @@ test_that("EOLAS_NO_PROGRESS=0 does not suppress when interactive()=TRUE", {
 # ---------------------------------------------------------------------------
 
 test_that("eolas_download_bulk bytes mode (path=NULL) succeeds with progress=TRUE", {
-  set_test_key()
-  ns         <- getNamespace("eolas")
-  call_count <- 0L
-  local_mocked_bindings(
-    .eolas_use_streaming = function() FALSE,
-    eolas_http_perform = function(req) {
-      call_count <<- call_count + 1L
-      if (call_count == 1L) fake_meta_resp()
-      else fake_resp(200L, FAKE_PARQUET)
-    },
-    .env = ns
-  )
-  raw <- eolas_download_bulk("nz_cpi", path = NULL, progress = TRUE)
-  expect_true(is.raw(raw))
-  expect_gt(length(raw), 0L)
+  with_mock_bulk(FAKE_PARQUET, code = {
+    raw <- eolas_download_bulk("nz_cpi", path = NULL, progress = TRUE)
+    expect_true(is.raw(raw))
+    expect_gt(length(raw), 0L)
+  })
 })

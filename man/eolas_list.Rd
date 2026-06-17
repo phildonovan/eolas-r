@@ -13,7 +13,7 @@ Use \code{\link[=eolas_list_statsnz]{eolas_list_statsnz()}}, \code{\link[=eolas_
 \item{base_url}{Override the API base URL (useful for testing).}
 }
 \value{
-A tibble (if the \code{tibble} package is installed) or a \code{data.frame}.
+A tibble.
 }
 \description{
 Returns a tibble (or data frame) with one row per dataset, including name,

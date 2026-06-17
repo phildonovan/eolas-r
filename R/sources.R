@@ -2,15 +2,15 @@
 # Each eolas_get_<source>() is a named wrapper over eolas_get() that tags the
 # result with the source label, used by the eolas_dataset print method.
 
-.eolas_get_source <- function(name, source, start = NULL, end = NULL,
-                            limit = NULL, as_sf = NULL, as_arrow = FALSE,
-                            base_url = EOLAS_BASE_URL) {
-  result <- eolas_get(name, start = start, end = end, limit = limit,
-                      as_sf = as_sf, as_arrow = as_arrow, base_url = base_url)
+.eolas_get_source <- function(name, source, ..., base_url = EOLAS_BASE_URL) {
+  dots <- list(...)
+  as_arrow <- isTRUE(dots$as_arrow)
+  result <- do.call(eolas_get, c(list(name = name, base_url = base_url), dots))
   # When as_arrow=TRUE the result is an arrow::Table which does not accept
   # arbitrary attribute assignment — skip the source tag silently.
-  if (!isTRUE(as_arrow)) {
+  if (!as_arrow) {
     attr(result, "eolas_source") <- source
+    .eolas_warn_source_mismatch(name, source, attr(result, "eolas_meta"))
   }
   result
 }
@@ -51,12 +51,12 @@
 #' @examples
 #' \dontrun{
 #' eolas_key("your_key")
-#' df <- eolas_get_statsnz("nz_cpi", start = "2015-01-01")
+#' df <- eolas_get_statsnz("bds_enterprises_business_type", start = "2015-01-01")
 #' library(ggplot2)
 #' ggplot(df, aes(date, value)) + geom_line()
 #' }
-eolas_get_statsnz <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Stats NZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_statsnz <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Stats NZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Stats NZ series
@@ -72,8 +72,8 @@ eolas_list_statsnz <- function() .eolas_list_source("Stats NZ")
 #' Fetch an OECD series
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_oecd <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "OECD", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_oecd <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "OECD", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all OECD series
@@ -88,8 +88,8 @@ eolas_list_oecd <- function() .eolas_list_source("OECD")
 #' Fetch an RBNZ series
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_rbnz <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "RBNZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_rbnz <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "RBNZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all RBNZ series
@@ -104,8 +104,8 @@ eolas_list_rbnz <- function() .eolas_list_source("RBNZ")
 #' Fetch a NZ Treasury series
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_treasury <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "NZ Treasury", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_treasury <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "NZ Treasury", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all NZ Treasury series
@@ -120,8 +120,8 @@ eolas_list_treasury <- function() .eolas_list_source("NZ Treasury")
 #' Fetch a LINZ series
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_linz <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "LINZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_linz <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "LINZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all LINZ series
@@ -141,8 +141,8 @@ eolas_list_linz <- function() .eolas_list_source("LINZ")
 #' This helper exists as a discoverability shortcut, not a separate source.
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_statsnz_geo <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Stats NZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_statsnz_geo <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Stats NZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List Stats NZ geospatial datasets only (filtered by namespace).
@@ -165,8 +165,8 @@ eolas_list_statsnz_geo <- function() {
 #' Fetch an MBIE dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_mbie <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "MBIE", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_mbie <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "MBIE", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all MBIE datasets
@@ -181,8 +181,8 @@ eolas_list_mbie <- function() .eolas_list_source("MBIE")
 #' Fetch a Waka Kotahi (NZTA) dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_nzta <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Waka Kotahi", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_nzta <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Waka Kotahi", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Waka Kotahi datasets
@@ -197,8 +197,8 @@ eolas_list_nzta <- function() .eolas_list_source("Waka Kotahi")
 #' Fetch an MSD dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_msd <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "MSD", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_msd <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "MSD", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all MSD datasets
@@ -213,8 +213,8 @@ eolas_list_msd <- function() .eolas_list_source("MSD")
 #' Fetch an NZ Police / MoJ dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_police <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "NZ Police / MoJ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_police <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "NZ Police / MoJ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all NZ Police / MoJ datasets
@@ -229,8 +229,8 @@ eolas_list_police <- function() .eolas_list_source("NZ Police / MoJ")
 #' Fetch an ACC dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_acc <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "ACC", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_acc <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "ACC", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all ACC datasets
@@ -245,8 +245,8 @@ eolas_list_acc <- function() .eolas_list_source("ACC")
 #' Fetch an Education Counts dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_edcounts <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Education Counts", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_edcounts <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Education Counts", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Education Counts datasets
@@ -285,8 +285,8 @@ eolas_list_edcounts <- function() .eolas_list_source("Education Counts")
 #' df  <- eolas_get_eeca("eeca_ev_metrics_district")    # EV penetration by territorial authority
 #' df  <- eolas_get_eeca("eeca_regional_heat_demand")   # industrial process heat by region x sector
 #' }
-eolas_get_eeca <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "EECA", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_eeca <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "EECA", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all EECA datasets available in eolas
@@ -302,8 +302,8 @@ eolas_list_eeca <- function() .eolas_list_source("EECA")
 #' Fetch a WorkSafe NZ dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_worksafe <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "WorkSafe NZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_worksafe <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "WorkSafe NZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all WorkSafe NZ datasets
@@ -318,8 +318,8 @@ eolas_list_worksafe <- function() .eolas_list_source("WorkSafe NZ")
 #' Fetch an Immigration NZ dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
-eolas_get_immigration <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Immigration NZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_immigration <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Immigration NZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Immigration NZ datasets
@@ -356,8 +356,8 @@ eolas_list_immigration <- function() .eolas_list_source("Immigration NZ")
 #' gdf <- eolas_get_lris("nzlum_v03")          # NZ Land Use Management v0.3
 #' gdf <- eolas_get_lris("pan_nz_2025_draft")  # protected areas (Draft, 2025)
 #' }
-eolas_get_lris <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Manaaki Whenua / LRIS", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_lris <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Manaaki Whenua / LRIS", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Manaaki Whenua / LRIS datasets
@@ -393,8 +393,8 @@ eolas_list_lris <- function() .eolas_list_source("Manaaki Whenua / LRIS")
 #' df  <- eolas_get_geonet("geonet_volcanic_alert_levels") # 12 monitored NZ volcanoes
 #' gdf <- eolas_get_geonet("geonet_strong_motion_sensors") # 25 strong-motion stations
 #' }
-eolas_get_geonet <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "GeoNet", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_geonet <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "GeoNet", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all GeoNet datasets available in eolas
@@ -431,8 +431,8 @@ eolas_list_geonet <- function() .eolas_list_source("GeoNet")
 #' land  <- eolas_get_doc("doc_public_conservation_land")    # ~11k conservation land polygons
 #' trks  <- eolas_get_doc("doc_tracks")                      # 3,248 DOC tracks (Polyline)
 #' }
-eolas_get_doc <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "DOC", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_doc <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "DOC", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all DOC datasets available in eolas
@@ -464,8 +464,8 @@ eolas_list_doc <- function() .eolas_list_source("DOC")
 #' gdf <- eolas_get_akl_council("akc_notable_trees_overlay")
 #' gdf <- eolas_get_akl_council("akc_significant_ecological_areas_overlay")
 #' }
-eolas_get_akl_council <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Auckland Council", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_akl_council <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Auckland Council", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Auckland Council datasets available in eolas
@@ -497,8 +497,8 @@ eolas_list_akl_council <- function() .eolas_list_source("Auckland Council")
 #' gdf <- eolas_get_akl_transport("akt_bus_stop")
 #' gdf <- eolas_get_akl_transport("akt_cycle_facility_network")
 #' }
-eolas_get_akl_transport <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Auckland Transport", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_akl_transport <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Auckland Transport", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Auckland Transport datasets available in eolas
@@ -530,8 +530,8 @@ eolas_list_akl_transport <- function() .eolas_list_source("Auckland Transport")
 #' gdf <- eolas_get_bay_of_plenty("boprc_historic_flood_extents")
 #' gdf <- eolas_get_bay_of_plenty("boprc_liquefaction_level_b")
 #' }
-eolas_get_bay_of_plenty <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Bay of Plenty Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_bay_of_plenty <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Bay of Plenty Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Bay of Plenty Councils datasets available in eolas
@@ -562,8 +562,8 @@ eolas_list_bay_of_plenty <- function() .eolas_list_source("Bay of Plenty Council
 #' df <- eolas_get_charities("charities_organisations")
 #' df <- eolas_get_charities("charities_annual_returns")
 #' }
-eolas_get_charities <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Charities Services", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_charities <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Charities Services", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Charities Services datasets available in eolas
@@ -596,8 +596,8 @@ eolas_list_charities <- function() .eolas_list_source("Charities Services")
 #' gdf <- eolas_get_colab_waikato("wmkdc_buildings")
 #' gdf <- eolas_get_colab_waikato("tcdc_dp_coastal_environment")
 #' }
-eolas_get_colab_waikato <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Co-Lab Waikato", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_colab_waikato <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Co-Lab Waikato", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Co-Lab Waikato datasets available in eolas
@@ -629,8 +629,8 @@ eolas_list_colab_waikato <- function() .eolas_list_source("Co-Lab Waikato")
 #' gdf <- eolas_get_ecan_canterbury("ecan_liquefaction_susceptibility_final")
 #' gdf <- eolas_get_ecan_canterbury("ecan_tsunami_evacuation_zones")
 #' }
-eolas_get_ecan_canterbury <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "ECan / Canterbury", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_ecan_canterbury <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "ECan / Canterbury", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all ECan / Canterbury datasets available in eolas
@@ -662,8 +662,8 @@ eolas_list_ecan_canterbury <- function() .eolas_list_source("ECan / Canterbury")
 #' gdf <- eolas_get_hawkes_bay("hbrc_coastal_erosion_likely_66")
 #' gdf <- eolas_get_hawkes_bay("hbrc_chb_hdc_wdc_liquefaction_severity")
 #' }
-eolas_get_hawkes_bay <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Hawke's Bay Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_hawkes_bay <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Hawke's Bay Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Hawke's Bay Councils datasets available in eolas
@@ -695,8 +695,8 @@ eolas_list_hawkes_bay <- function() .eolas_list_source("Hawke's Bay Councils")
 #' gdf <- eolas_get_manawatu_whanganui("horizons_coastal_marine_area")
 #' gdf <- eolas_get_manawatu_whanganui("horizons_airshed_taihape")
 #' }
-eolas_get_manawatu_whanganui <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Manawatu-Whanganui Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_manawatu_whanganui <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Manawatu-Whanganui Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Manawatu-Whanganui Councils datasets available in eolas
@@ -728,8 +728,8 @@ eolas_list_manawatu_whanganui <- function() .eolas_list_source("Manawat\u016b-Wh
 #' gdf <- eolas_get_napier_whanganui("napier_heritage_buildings")
 #' gdf <- eolas_get_napier_whanganui("napier_address_points")
 #' }
-eolas_get_napier_whanganui <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Napier + Whanganui", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_napier_whanganui <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Napier + Whanganui", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Napier + Whanganui datasets available in eolas
@@ -762,8 +762,8 @@ eolas_list_napier_whanganui <- function() .eolas_list_source("Napier + Whanganui
 #' gdf <- eolas_get_northland("fndc_district_plan_zones")
 #' gdf <- eolas_get_northland("fndc_heritage_areas")
 #' }
-eolas_get_northland <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Northland Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_northland <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Northland Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Northland Councils datasets available in eolas
@@ -796,8 +796,8 @@ eolas_list_northland <- function() .eolas_list_source("Northland Councils")
 #' gdf <- eolas_get_otago("orc_otago_irrigated_areas")
 #' gdf <- eolas_get_otago("orc_otago_land_use_2024")
 #' }
-eolas_get_otago <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Otago Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_otago <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Otago Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Otago Councils datasets available in eolas
@@ -834,8 +834,8 @@ eolas_list_otago <- function() .eolas_list_source("Otago Councils")
 #' df <- eolas_get_pharmac("pharmac_hospital_medicines_list")  # current HML
 #' df <- eolas_get_pharmac("pharmac_hml_history")       # 2011-present HML archive
 #' }
-eolas_get_pharmac <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "PHARMAC", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_pharmac <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "PHARMAC", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all PHARMAC datasets available in eolas
@@ -867,8 +867,8 @@ eolas_list_pharmac <- function() .eolas_list_source("PHARMAC")
 #' gdf <- eolas_get_southland("sdc_southland_dp_zones")
 #' gdf <- eolas_get_southland("sdc_southland_dp_heritage_items")
 #' }
-eolas_get_southland <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Southland Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_southland <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Southland Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Southland Councils datasets available in eolas
@@ -901,8 +901,8 @@ eolas_list_southland <- function() .eolas_list_source("Southland Councils")
 #' gdf <- eolas_get_taranaki("trc_biodiversity_coastal_mgmt_areas")
 #' gdf <- eolas_get_taranaki("npdc_dp_operative_coastal_flooding")
 #' }
-eolas_get_taranaki <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Taranaki Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_taranaki <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Taranaki Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Taranaki Councils datasets available in eolas
@@ -935,8 +935,8 @@ eolas_list_taranaki <- function() .eolas_list_source("Taranaki Councils")
 #' gdf <- eolas_get_top_of_south("gdc_coastal_environment")
 #' gdf <- eolas_get_top_of_south("gdc_coastal_erosion")
 #' }
-eolas_get_top_of_south <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Gisborne / Top of South Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_top_of_south <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Gisborne / Top of South Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Gisborne / Top of South Councils datasets available in eolas
@@ -967,10 +967,10 @@ eolas_list_top_of_south <- function() .eolas_list_source("Gisborne / Top of Sout
 #' \dontrun{
 #' eolas_key("your_key")
 #' gdf <- eolas_get_wellington("wcc_district_plan_zones_2024")
-#' gdf <- eolas_get_wellington("gwrc_flood_hazard_extents")
+#' gdf <- eolas_get_wellington("gwrc_flood_1pct_aep")
 #' }
-eolas_get_wellington <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "Wellington Region Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_wellington <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "Wellington Region Councils", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all Wellington Region Councils datasets available in eolas
@@ -1003,8 +1003,8 @@ eolas_list_wellington <- function() .eolas_list_source("Wellington Region Counci
 #' gdf <- eolas_get_west_coast("wcrc_active_faults")
 #' gdf <- eolas_get_west_coast("wcrc_alpine_fault_traces")
 #' }
-eolas_get_west_coast <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE) {
-  .eolas_get_source(name, "West Coast (Te Tai o Poutini)", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow)
+eolas_get_west_coast <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
+  .eolas_get_source(name, "West Coast (Te Tai o Poutini)", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
 #' List all West Coast (Te Tai o Poutini) datasets available in eolas

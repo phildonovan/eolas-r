@@ -12,7 +12,7 @@ eolas_info(name, base_url = EOLAS_BASE_URL)
 \item{base_url}{Override the API base URL (useful for testing).}
 }
 \value{
-A named list with dataset metadata.
+A one-row tibble with dataset metadata.
 }
 \description{
 Get metadata for a single dataset

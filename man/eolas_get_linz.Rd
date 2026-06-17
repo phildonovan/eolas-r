@@ -10,7 +10,8 @@ eolas_get_linz(
   end = NULL,
   limit = NULL,
   as_sf = NULL,
-  as_arrow = FALSE
+  as_arrow = FALSE,
+  ...
 )
 }
 \arguments{

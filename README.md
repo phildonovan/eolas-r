@@ -51,21 +51,22 @@ library(ggplot2)
 
 eolas_key("your_api_key")   # or: eolas_key_save() once, or set EOLAS_API_KEY in .Renviron
 
-# Generic
-df <- eolas_get("nz_cpi", start = "2020-01-01")
+# CPI index (monthly, RBNZ M1) — the usual Treasury/analyst choice
+cpi <- eolas_get_rbnz("rbnz_m1_prices", start = "2020-01-01")
 
-# Source-tagged (sets the `eolas_source` attr for downstream display)
-df <- eolas_get_statsnz("nz_cpi")
-df <- eolas_get_oecd("nz_gdp_growth")
+# OECD macro indicators (quarterly YoY % — not CPI index levels)
+inflation <- eolas_get_oecd("nz_cpi", start = "2020-01-01")
+gdp       <- eolas_get_oecd("nz_gdp_growth")
 
 # Discovery
 all_datasets <- eolas_list()
 nz_only      <- eolas_list("Stats NZ")
-meta         <- eolas_info("nz_cpi")
+eolas_search("cpi")   # expands aliases; surfaces rbnz_m1_prices before nz_cpi
+meta         <- eolas_info("rbnz_m1_prices")
 
 # Plot — use ggplot2 directly. eolas_get_* returns tidy data frames so
 # `aes(date, value)` is usually all you need:
-ggplot(df, aes(date, value)) + geom_line()
+ggplot(inflation, aes(date, value)) + geom_line()
 ```
 
 Get an API key at <https://eolas.fyi/signup>. Free plan is 10 requests/month; Pro ($49/month) is unlimited.
@@ -127,7 +128,7 @@ result <- dbGetQuery(con, "
 ")
 ```
 
-`as_arrow = TRUE` works on all datasets (geo or non-geo), all routing modes (`mode = "live"`, `"cached"`, `"auto"`), and all `eolas_get_*()` source helpers. It cannot be combined with `as_sf = TRUE`.
+`as_arrow = TRUE` works on all datasets (geo or non-geo), on both the live `eolas_get()` path and `eolas_get_local()`, and on all `eolas_get_*()` source helpers. It cannot be combined with `as_sf = TRUE`.
 
 ## Faster transport (Arrow)
 
@@ -151,29 +152,21 @@ curl -H "X-API-Key: $EOLAS_API_KEY" \
 
 See the [R reference](https://docs.eolas.fyi/r/reference/) for the format benchmark.
 
-## Bulk downloads — `eolas_get()` is now smart
+## Bulk downloads — use `eolas_get_local()` for whole datasets
 
-`eolas_get()` auto-routes large or geospatial datasets through the cache+sync path — no code change needed. `eolas_get_linz("nz_parcels")` used to take 15 minutes (live Iceberg scan); it now returns an `sf` object in seconds.
+`eolas_get()` hits the live `/data` endpoint (good for slices and small pulls). For whole datasets — especially large or geospatial layers — use `eolas_get_local()`. It syncs a CDN-cached Parquet/GeoParquet file to your library directory and reads from disk on subsequent calls.
 
 ```r
-# Smart default: nz_parcels auto-routes to CDN-cached GeoParquet, no limit needed
-gdf <- eolas_get_linz("nz_parcels")   # sf object in seconds
-df  <- eolas_get("nz_cpi")            # small dataset -> stays on live path
+# Whole-dataset path: nz_parcels from CDN-cached GeoParquet (seconds, not a 15-min Iceberg scan)
+gdf <- eolas_get_local("nz_parcels")   # sf object when sf is installed
+df  <- eolas_get_local("nz_cpi")       # tidy data.frame from cached Parquet
 
-# Escape hatches when you need explicit control:
-gdf <- eolas_get("nz_parcels", mode = "live")      # force live Iceberg scan (server returns 413
-                                                    # if dataset is large/geo and no filter is set
-                                                    # — apply limit/start/end or use mode="cached")
-gdf <- eolas_get("nz_parcels", mode = "cached")    # force cache+sync (= eolas_get_local)
+# Live path: date slices, row limits, licence-restricted sources (e.g. OECD)
+df  <- eolas_get("nz_cpi", start = "2020-01-01")
+df  <- eolas_get("nz_cpi", limit = 100)
 ```
 
-**Routing rules (`mode = "auto"`, the default):**
-1. If `start`, `end`, or `limit` is set -> always live (slice queries can't use a whole-file cache).
-2. If the dataset is licence-restricted (`bulk_export_class = "none"`, e.g. OECD) -> always live.
-3. If bulk-eligible AND (has geometry OR >100k rows) -> cache+sync path.
-4. Otherwise -> live.
-
-`eolas_get_local()` is the explicit alias for `mode = "cached"` — use it when you need to control `cache_dir`, `format`, or `freshness`:
+Use `eolas_get_local()` when you need to control `cache_dir`, `format`, or `freshness`:
 
 ```r
 # Explicit cache+sync with extra options
@@ -217,6 +210,18 @@ r$ops_applied   # e.g. 1240
 A sidecar at `paste0(path, ".eolas-meta.json")` records the snapshot id / feed watermark so the next call fetches only new data. For SCD2 datasets the merge keeps only the current rows (`is_current = true`), so `buildings.parquet` is always a clean current-state snapshot — the SCD2 history is handled for you. A `410` (watermark expired) self-heals by re-baselining.
 
 The changelog sidecar (`schema_version` 2) is byte-compatible with the Python `eolas-data` client: a file synced from Python can be resumed from R and vice versa.
+
+## Testing
+
+```bash
+# unit tests (mocked HTTP — no API key needed)
+Rscript -e 'devtools::test()'
+
+# or from the monorepo root:
+../scripts/test-clients.sh
+```
+
+`R CMD check` runs the same testthat suite via `tests/testthat.R`. CI runs check + coverage on every push/PR. A weekly workflow optionally hits the live API when `EOLAS_API_KEY` is configured as a repository secret.
 
 ## License
 

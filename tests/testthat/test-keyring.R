@@ -116,6 +116,10 @@ test_that("eolas_get_key_internal: errors with helpful message when nothing set"
       key_get = function(service, username) stop("No entry"),
       .package = "keyring"
     )
+    local_mocked_bindings(
+      .config_file_get_key = function() "",
+      .package = "eolas"
+    )
     expect_error(ns$eolas_get_key_internal(), "No API key found")
   })
 })
@@ -128,6 +132,7 @@ test_that("eolas_get_key_internal: graceful fall-through when keyring not instal
   withr::with_envvar(c(EOLAS_API_KEY = ""), {
     local_mocked_bindings(
       .keyring_get = function() "",
+      .config_file_get_key = function() "",
       .package = "eolas"
     )
     expect_error(ns$eolas_get_key_internal(), "No API key found")
@@ -248,6 +253,7 @@ test_that("eolas_key_status reports none when nothing configured", {
   withr::with_envvar(c(EOLAS_API_KEY = ""), {
     local_mocked_bindings(
       .keyring_get = function() "",
+      .config_file_get_key = function() "",
       .package = "eolas"
     )
     result <- suppressMessages(eolas_key_status())

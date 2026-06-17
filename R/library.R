@@ -109,6 +109,12 @@
   }
 }
 
+# Thin wrapper around utils::menu() so tests can mock it via
+# with_mocked_bindings(.package = "eolas").
+.eolas_cli_select <- function(choices, title) {
+  utils::menu(choices = choices, title = title)
+}
+
 # Session-once interactive prompt for library directory selection.
 # Called when: interactive() is TRUE AND no env/config value is set AND
 # the prompt has not already fired this session.
@@ -116,7 +122,7 @@
   if (isTRUE(.eolas_lib_runtime$prompt_fired)) return(NULL)
   .eolas_lib_runtime$prompt_fired <- TRUE
 
-  choice <- utils::menu(
+  choice <- .eolas_cli_select(
     choices = c(
       "~/eolas-library  (user-wide, persistent — recommended)",
       "./eolas-library  (this project)",

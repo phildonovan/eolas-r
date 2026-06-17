@@ -285,14 +285,14 @@ eolas_download_bulk <- function(name,
       "Fresh bulk downloads are a Pro feature. Free accounts get the latest ",
       "monthly snapshot — see https://eolas.fyi/pricing."
     )
-    stop("Bulk upgrade required: ", detail, call. = FALSE)
+    cli::cli_abort("Bulk upgrade required: {detail}", call. = FALSE)
   }
 
   if (status == 403L) {
     body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
     detail <- body_j$detail %||% ""
     if (nzchar(detail) && grepl("licence", detail, ignore.case = TRUE)) {
-      stop("Bulk licence restricted: ", detail, call. = FALSE)
+      cli::cli_abort("Bulk licence restricted: {detail}", call. = FALSE)
     }
     # Key-auth 403 — delegate to the standard status handler.
     eolas_check_status(conn_resp)
@@ -305,7 +305,7 @@ eolas_download_bulk <- function(name,
       "Try again after the 1st of next month, or upgrade to Pro for ",
       "on-demand current snapshots — see https://eolas.fyi/pricing."
     )
-    stop("Bulk not yet available: ", detail, call. = FALSE)
+    cli::cli_abort("Bulk not yet available: {detail}", call. = FALSE)
   }
 
   if (status != 200L) {
@@ -407,20 +407,20 @@ eolas_download_bulk <- function(name,
   if (status == 402L) {
     body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
     detail <- body$detail %||% "Fresh bulk downloads are a Pro feature."
-    stop("Bulk upgrade required: ", detail, call. = FALSE)
+    cli::cli_abort("Bulk upgrade required: {detail}", call. = FALSE)
   }
   if (status == 403L) {
     body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
     detail <- body$detail %||% ""
     if (nzchar(detail) && grepl("licence", detail, ignore.case = TRUE)) {
-      stop("Bulk licence restricted: ", detail, call. = FALSE)
+      cli::cli_abort("Bulk licence restricted: {detail}", call. = FALSE)
     }
     eolas_check_status(resp)
   }
   if (status == 503L) {
     body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
     detail <- body$detail %||% "Monthly bulk snapshots are still rolling out."
-    stop("Bulk not yet available: ", detail, call. = FALSE)
+    cli::cli_abort("Bulk not yet available: {detail}", call. = FALSE)
   }
   if (status != 200L) {
     eolas_check_status(resp)
@@ -582,20 +582,20 @@ eolas_sync_bulk <- function(name,
   if (status == 402L) {
     body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
     detail <- body_j$detail %||% "Fresh bulk downloads are a Pro feature."
-    stop("Bulk upgrade required: ", detail, call. = FALSE)
+    cli::cli_abort("Bulk upgrade required: {detail}", call. = FALSE)
   }
   if (status == 403L) {
     body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
     detail <- body_j$detail %||% ""
     if (nzchar(detail) && grepl("licence", detail, ignore.case = TRUE)) {
-      stop("Bulk licence restricted: ", detail, call. = FALSE)
+      cli::cli_abort("Bulk licence restricted: {detail}", call. = FALSE)
     }
     eolas_check_status(conn_resp)
   }
   if (status == 503L) {
     body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
     detail <- body_j$detail %||% "Monthly bulk snapshots are still rolling out."
-    stop("Bulk not yet available: ", detail, call. = FALSE)
+    cli::cli_abort("Bulk not yet available: {detail}", call. = FALSE)
   }
   if (status != 200L) {
     eolas_check_status(conn_resp)
@@ -749,6 +749,7 @@ eolas_get_local <- function(name,
                              freshness = "auto",
                              as_sf     = NULL,
                              as_arrow  = FALSE,
+                             meta      = TRUE,
                              progress  = NULL,
                              base_url  = EOLAS_BASE_URL,
                              ...) {
@@ -782,14 +783,22 @@ eolas_get_local <- function(name,
   dir.create(cache_dir_expanded, recursive = TRUE, showWarnings = FALSE)
   cache_dir_abs <- tools::file_path_as_absolute(cache_dir_expanded)
 
+  meta_info <- .eolas_fetch_meta_info(name, base_url, meta)
+
+  finish <- function(x) {
+    if (isTRUE(as_arrow)) return(x)
+    .eolas_finalize_dataset(x, name = name, meta_info = meta_info)
+  }
+
   # ---- auto-detect format if not specified ----------------------------------
   if (is.null(format)) {
-    meta       <- eolas_info(name, base_url = base_url)
-    gt         <- meta$geometry_type
-    wkt        <- meta$geometry_wkt
+    meta       <- meta_info %||% eolas_info(name, base_url = base_url)
+    gt         <- if ("geometry_type" %in% names(meta)) meta$geometry_type[[1]] else NULL
+    wkt        <- if ("geometry_wkt" %in% names(meta)) meta$geometry_wkt[[1]] else NULL
     gt_truthy  <- !is.null(gt)  && nzchar(gt)  && gt  != "none"
     wkt_truthy <- !is.null(wkt) && nzchar(wkt) && wkt != "none"
-    is_geo     <- gt_truthy || wkt_truthy || isTRUE(meta$has_geometry)
+    has_geom   <- if ("has_geometry" %in% names(meta)) isTRUE(meta$has_geometry[[1]]) else FALSE
+    is_geo     <- gt_truthy || wkt_truthy || has_geom
     fmt        <- if (is_geo) "geoparquet" else "parquet"
   } else {
     fmt <- match.arg(format, .BULK_VALID_FORMATS)
@@ -842,7 +851,7 @@ eolas_get_local <- function(name,
           NULL
         }
       )
-      if (!is.null(result)) return(result)
+      if (!is.null(result)) return(finish(result))
     }
 
     # Last-resort sfarrow attempt (in case arrow isn't installed). sfarrow
@@ -858,7 +867,7 @@ eolas_get_local <- function(name,
           NULL
         }
       )
-      if (!is.null(result)) return(result)
+      if (!is.null(result)) return(finish(result))
 
       # sfarrow failed — likely malformed GeoParquet metadata (e.g. empty
       # geometry_types array from an older S3 snapshot).  Fall back to the
@@ -957,10 +966,10 @@ eolas_get_local <- function(name,
           )
         }
       )
-      return(sf_obj)
+      return(finish(sf_obj))
     }
     if (requireNamespace("sf", quietly = TRUE)) {
-      return(sf::st_read(file_path, quiet = TRUE))
+      return(finish(sf::st_read(file_path, quiet = TRUE)))
     }
     # Neither sf nor sfarrow available — fall through to plain read below.
     cli::cli_alert_info(c(
@@ -971,12 +980,12 @@ eolas_get_local <- function(name,
 
   # Plain read paths.
   if (fmt == "csv_gz") {
-    return(utils::read.csv(gzfile(file_path), stringsAsFactors = FALSE))
+    return(finish(utils::read.csv(gzfile(file_path), stringsAsFactors = FALSE)))
   }
 
   # parquet or geoparquet-without-sf. arrow is a hard dependency (it's on the
   # default bulk/large-dataset read path), but check_installed still gives a
   # clean, install-offering message if the user's arrow build is broken.
   rlang::check_installed("arrow", reason = "to read Parquet data from eolas")
-  as.data.frame(arrow::read_parquet(file_path))
+  finish(as.data.frame(arrow::read_parquet(file_path)))
 }

@@ -1,61 +1,8 @@
 library(testthat)
 library(withr)
 
-# Tests for eolas_get_local() -- the notebook-friendly whole-dataset convenience.
-
-# ---------------------------------------------------------------------------
-# Shared constants
-# ---------------------------------------------------------------------------
-
-FAKE_PARQUET_LOCAL <- c(charToRaw("PAR1"), as.raw(rep(0L, 12)), charToRaw("PAR1"))
-
-DATASET_META_NON_GEO <- jsonlite::toJSON(
-  list(name = "nz_cpi", title = "NZ CPI", source = "Stats NZ",
-       namespace = "statsnz", table = "nz_cpi"),
-  auto_unbox = TRUE
-)
-
-DATASET_META_GEO <- jsonlite::toJSON(
-  list(name = "nz_parcels", title = "NZ Parcels", source = "LINZ",
-       namespace = "linz", table = "nz_parcels",
-       geometry_type = "MultiPolygon"),
-  auto_unbox = TRUE
-)
-
-SNAPSHOT_ID <- "snap_abc123"
-
-# ---------------------------------------------------------------------------
-# with_mock_get_local: mock the three underlying calls made by eolas_get_local
-# (info, sync_bulk's info call, HEAD, and optional GET).
-# Strategy: mock eolas_sync_bulk directly so get_local only needs to read the
-# file — decoupling from the full sync_bulk call chain.
-# ---------------------------------------------------------------------------
-
-with_mock_get_local <- function(name,
-                                meta_json,
-                                file_writer,     # function(path) -> writes a file to path
-                                code) {
-  ns <- getNamespace("eolas")
-  assign("key", "eolas_testkey", envir = ns$.eolas_env)
-
-  local_mocked_bindings(
-    eolas_info = function(n, base_url = NULL) {
-      jsonlite::fromJSON(meta_json, simplifyVector = FALSE)
-    },
-    eolas_sync_bulk = function(n, path, format, freshness, base_url = NULL, ...) {
-      file_writer(path)
-      list(
-        status               = "downloaded",
-        previous_snapshot_id = NA_character_,
-        current_snapshot_id  = SNAPSHOT_ID,
-        path                 = normalizePath(path, mustWork = FALSE),
-        bytes_downloaded     = 1024L
-      )
-    },
-    .env = ns
-  )
-  code
-}
+# Tests for eolas_get_local() — notebook-friendly whole-dataset convenience.
+# Constants + with_mock_get_local() live in helper.R.
 
 # ---------------------------------------------------------------------------
 # First call returns data.frame (non-geo, via arrow or CSV)
@@ -73,7 +20,7 @@ test_that("eolas_get_local returns data.frame for non-geo dataset (first call)",
     close(con)
   }
 
-  with_mock_get_local("nz_cpi", DATASET_META_NON_GEO, file_writer, {
+  with_mock_get_local(DATASET_META_NON_GEO, file_writer, {
     result <- eolas_get_local("nz_cpi",
                               format    = "csv_gz",
                               cache_dir = tmp)
@@ -114,7 +61,7 @@ test_that("eolas_get_local returns data.frame from cached file on subsequent cal
         bytes_downloaded     = 0L
       )
     },
-    .env = ns
+    .package = "eolas"
   )
 
   result <- eolas_get_local("nz_cpi", format = "csv_gz", cache_dir = tmp)
@@ -152,7 +99,7 @@ test_that("eolas_get_local expands ~ in cache_dir to an absolute path", {
            path = normalizePath(path, mustWork = FALSE),
            bytes_downloaded = 100L)
     },
-    .env = ns
+    .package = "eolas"
   )
 
   eolas_get_local("nz_cpi", format = "csv_gz", cache_dir = "~/.cache/eolas")
@@ -189,7 +136,7 @@ test_that("eolas_get_local auto-detects geoparquet for geo datasets", {
            path = normalizePath(path, mustWork = FALSE),
            bytes_downloaded = 1024L)
     },
-    .env = ns
+    .package = "eolas"
   )
 
   # Suppress the expected read failure and any WKT-fallback warning — we only
@@ -225,7 +172,7 @@ test_that("eolas_get_local auto-detects parquet for non-geo datasets", {
            path = normalizePath(path, mustWork = FALSE),
            bytes_downloaded = 1024L)
     },
-    .env = ns
+    .package = "eolas"
   )
 
   # Arrow likely not available; suppress read error, only test format selection.
@@ -269,7 +216,7 @@ test_that("eolas_get_local auto-detects parquet when geometry_type is string 'no
            path = normalizePath(path, mustWork = FALSE),
            bytes_downloaded = 1024L)
     },
-    .env = ns
+    .package = "eolas"
   )
 
   tryCatch(
@@ -297,7 +244,7 @@ test_that("eolas_get_local propagates Bulk upgrade required stop() unchanged", {
     eolas_sync_bulk = function(n, path, format, freshness, base_url = NULL, ...) {
       stop("Bulk upgrade required: Fresh bulk downloads are a Pro feature.", call. = FALSE)
     },
-    .env = ns
+    .package = "eolas"
   )
 
   expect_error(
@@ -328,7 +275,7 @@ test_that("eolas_get_local propagates Bulk licence restricted stop() unchanged",
       stop("Bulk licence restricted: This dataset is not available (licence: OECD).",
            call. = FALSE)
     },
-    .env = ns
+    .package = "eolas"
   )
 
   expect_error(
@@ -352,7 +299,7 @@ test_that("eolas_get_local propagates Bulk not yet available stop() unchanged", 
       stop("Bulk not yet available: Monthly bulk snapshots are still rolling out.",
            call. = FALSE)
     },
-    .env = ns
+    .package = "eolas"
   )
 
   expect_error(
@@ -391,19 +338,29 @@ test_that("eolas_get_local falls back to WKT parquet when sfarrow throws on malf
   ns <- getNamespace("eolas")
   assign("key", "eolas_testkey", envir = ns$.eolas_env)
 
-  local_mocked_bindings(
+  skip_if_not_installed("sfarrow")
+
+  set_test_key()
+  with_mocked_bindings(
+    {
+      expect_warning(
+        result <- eolas_get_local("nz_parcels", cache_dir = tmp, progress = FALSE),
+        regexp = "falling back to WKT string path"
+      )
+      expect_s3_class(result, "sf")
+      expect_equal(nrow(result), 1L)
+      expect_false("geometry_wkt" %in% names(result))
+      expect_equal(attr(result, "sf_column"), "geometry")
+      expect_true(inherits(result[["geometry"]], "sfc"))
+    },
     eolas_info = function(n, base_url = NULL) {
       jsonlite::fromJSON(DATASET_META_GEO, simplifyVector = FALSE)
     },
     eolas_sync_bulk = function(n, path, format, freshness, base_url = NULL, ...) {
       if (format == "geoparquet") {
-        # Write a stub .geo.parquet so the file_path exists (sfarrow will be
-        # mocked to fail before actually reading it).
         dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
         writeBin(raw(0L), path)
       }
-      # For format == "parquet" the real file was already written above at
-      # wkt_parquet_path; nothing else to do — path == wkt_parquet_path.
       list(
         status               = "downloaded",
         previous_snapshot_id = NA_character_,
@@ -412,26 +369,15 @@ test_that("eolas_get_local falls back to WKT parquet when sfarrow throws on malf
         bytes_downloaded     = 1024L
       )
     },
-    # Mock the thin sfarrow wrapper to simulate a malformed-GeoParquet error.
+    .eolas_arrow_wkb_to_sf = function(file_path) {
+      stop("simulated arrow+WKB failure", call. = FALSE)
+    },
     .eolas_sfarrow_read_parquet = function(file_path) {
       stop("vapply(x, is.raw, TRUE) are not all TRUE", call. = FALSE)
     },
-    .env = ns
+    .package = "eolas"
   )
 
-  expect_warning(
-    result <- eolas_get_local("nz_parcels", cache_dir = tmp, progress = FALSE),
-    regexp = "GeoParquet read failed",
-    fixed  = FALSE
-  )
-
-  expect_s3_class(result, "sf")
-  expect_equal(nrow(result), 1L)
-  # .eolas_to_sf() drops the raw geometry_wkt string column and creates a
-  # proper "geometry" sfc column — consistent with the live-API path.
-  expect_false("geometry_wkt" %in% names(result))
-  expect_equal(attr(result, "sf_column"), "geometry")
-  expect_true(inherits(result[["geometry"]], "sfc"))
 })
 
 test_that("eolas_get_local re-raises sfarrow error when both GeoParquet and WKT fallback fail", {
@@ -463,7 +409,7 @@ test_that("eolas_get_local re-raises sfarrow error when both GeoParquet and WKT 
     .eolas_sfarrow_read_parquet = function(file_path) {
       stop("vapply(x, is.raw, TRUE) are not all TRUE", call. = FALSE)
     },
-    .env = ns
+    .package = "eolas"
   )
 
   # The cli_warn() fires before the stop() — suppress it so the test focuses on
@@ -558,7 +504,7 @@ test_that("malformed GeoParquet (empty geometry_types) triggers WKT fallback and
         bytes_downloaded     = 1024L
       )
     },
-    .env = ns
+    .package = "eolas"
   )
 
   # ---- Primary path must fail, fallback must succeed and emit a warning -----

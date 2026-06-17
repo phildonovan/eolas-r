@@ -26,7 +26,8 @@ test_that("cold start: baselines via bulk + anchors watermark + writes v2 sideca
       arrow::write_parquet(data.frame(id = 1:2, name = c("p1", "p2"), is_current = c(TRUE, TRUE)), path)
       list(status = "downloaded", current_snapshot_id = "snapA")
     },
-    .eolas_fetch_seq_high = function(name, ...) 100
+    .eolas_fetch_seq_high = function(name, ...) 100,
+    .package = "eolas"
   )
   r <- eolas_sync_changes("t", path = out)
   expect_equal(r$status, "downloaded")
@@ -51,7 +52,8 @@ test_that("incremental: pages changes, merges into local file, advances watermar
     .changes_df(103, "I", 3, "p3"))       # insert id 3
   local_mocked_bindings(
     eolas_info = function(name, ...) .meta,
-    .eolas_fetch_all_change_pages = function(name, since_seq, ...) list(changes = changes, final_seq = 103)
+    .eolas_fetch_all_change_pages = function(name, since_seq, ...) list(changes = changes, final_seq = 103),
+    .package = "eolas"
   )
   r <- eolas_sync_changes("t", path = out)
   expect_equal(r$status, "updated")
@@ -73,7 +75,8 @@ test_that("unchanged: empty feed -> no rewrite, watermark held", {
   before_mtime <- file.mtime(out)
   local_mocked_bindings(
     eolas_info = function(name, ...) .meta,
-    .eolas_fetch_all_change_pages = function(name, since_seq, ...) list(changes = data.frame(), final_seq = 105)
+    .eolas_fetch_all_change_pages = function(name, since_seq, ...) list(changes = data.frame(), final_seq = 105),
+    .package = "eolas"
   )
   r <- eolas_sync_changes("t", path = out)
   expect_equal(r$status, "unchanged")
@@ -97,7 +100,8 @@ test_that("410 watermark expired: self-heals by re-baselining", {
                                       is_current = c(TRUE, TRUE, TRUE)), path)
       list(status = "downloaded", current_snapshot_id = "snapNew")
     },
-    .eolas_fetch_seq_high = function(name, ...) 500
+    .eolas_fetch_seq_high = function(name, ...) 500,
+    .package = "eolas"
   )
   r <- eolas_sync_changes("t", path = out)
   expect_equal(r$status, "updated")

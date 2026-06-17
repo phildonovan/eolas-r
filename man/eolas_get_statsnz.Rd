@@ -10,7 +10,8 @@ eolas_get_statsnz(
   end = NULL,
   limit = NULL,
   as_sf = NULL,
-  as_arrow = FALSE
+  as_arrow = FALSE,
+  ...
 )
 }
 \arguments{
@@ -46,7 +47,7 @@ A named wrapper over \code{\link[=eolas_get]{eolas_get()}} that tags the result 
 \examples{
 \dontrun{
 eolas_key("your_key")
-df <- eolas_get_statsnz("nz_cpi", start = "2015-01-01")
+df <- eolas_get_statsnz("bds_enterprises_business_type", start = "2015-01-01")
 library(ggplot2)
 ggplot(df, aes(date, value)) + geom_line()
 }

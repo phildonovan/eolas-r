@@ -10,7 +10,8 @@ eolas_get_wellington(
   end = NULL,
   limit = NULL,
   as_sf = NULL,
-  as_arrow = FALSE
+  as_arrow = FALSE,
+  ...
 )
 }
 \arguments{
@@ -53,6 +54,6 @@ Licence: CC-BY 4.0.
 \dontrun{
 eolas_key("your_key")
 gdf <- eolas_get_wellington("wcc_district_plan_zones_2024")
-gdf <- eolas_get_wellington("gwrc_flood_hazard_extents")
+gdf <- eolas_get_wellington("gwrc_flood_1pct_aep")
 }
 }

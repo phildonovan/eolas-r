@@ -1,8 +1,6 @@
 library(testthat)
-library(httr2)
 
-# httr2_mock_resp() and with_mock_eolas() now live in helper.R so they can
-# be shared with test-integration.R.
+# httr2_mock_resp(), with_mock_eolas(), httr2_mock_resp_empty() live in helper.R.
 
 DATASET_LIST_BODY <- '[
   {"name":"nz_cpi","title":"NZ CPI","source":"Stats NZ","namespace":"statsnz","description":""},
@@ -50,10 +48,10 @@ test_that("eolas_get_key_internal errors when no key set anywhere", {
 # eolas_list
 # ---------------------------------------------------------------------------
 
-test_that("eolas_list returns a data frame", {
+test_that("eolas_list returns a tibble", {
   with_mock_eolas(DATASET_LIST_BODY, code = {
     result <- eolas_list()
-    expect_s3_class(result, "data.frame")
+    expect_s3_class(result, "tbl_df")
     expect_equal(nrow(result), 2L)
   })
 })
@@ -90,27 +88,79 @@ test_that("eolas_list_oecd returns only OECD rows", {
 # eolas_info
 # ---------------------------------------------------------------------------
 
-test_that("eolas_info returns a list", {
+test_that("eolas_info returns a one-row tibble", {
   with_mock_eolas('{"name":"nz_cpi","title":"NZ Consumer Price Index","source":"Stats NZ"}', code = {
     result <- eolas_info("nz_cpi")
-    expect_type(result, "list")
+    expect_s3_class(result, "tbl_df")
+    expect_equal(nrow(result), 1L)
     expect_equal(result$name, "nz_cpi")
   })
+})
+
+test_that("eolas_info parses live-shaped JSON (null has_geometry, snapshots, column series_id)", {
+  live_body <- '{"name":"nz_cpi","namespace":"oecd","source":"OECD","country":"OECD",
+    "title":"NZ CPI inflation (annual % change)","description":"Quarterly CPI YoY.",
+    "bulk_export_class":"none","geometry_type":"none","has_geometry":null,
+    "row_count_at_last_refresh":145,"licence":"OECD Terms",
+    "current_snapshot_id":7406634567890123456,"refresh_cadence":"monthly",
+    "last_refreshed_at":"2026-06-14T18:02:02+00:00",
+    "previous_snapshots":[5567890123456789012,7478901234567890123],
+    "columns":[
+      {"name":"date","type":"date","description":"Observation date","series_id":null},
+      {"name":"value","type":"double","description":"Value","series_id":null}
+    ]}'
+  set_test_key()
+  with_mocked_bindings({
+    result <- eolas_info("nz_cpi")
+    expect_s3_class(result, "tbl_df")
+    expect_equal(nrow(result), 1L)
+    expect_equal(result$name, "nz_cpi")
+    expect_length(result$previous_snapshots[[1]], 2L)
+    expect_true(is.na(result$has_geometry[[1]]))
+    cols <- result$columns[[1]]
+    expect_equal(nrow(cols), 2L)
+    expect_equal(cols$name, c("date", "value"))
+    expect_true(all(is.na(cols$series_id)))
+  },
+  .eolas_use_streaming = function() FALSE,
+  eolas_http_perform = function(req) httr2_mock_resp(live_body),
+  .package = "eolas")
 })
 
 # ---------------------------------------------------------------------------
 # eolas_get
 # ---------------------------------------------------------------------------
 
-test_that("eolas_get returns a eolas_dataset with Date column", {
+test_that("eolas_get returns a eolas_dataset tibble with Date column", {
   with_mock_eolas(DATA_BODY, code = {
     df <- eolas_get("nz_cpi")
     expect_s3_class(df, "eolas_dataset")
-    expect_s3_class(df, "data.frame")
+    expect_s3_class(df, "tbl_df")
     expect_equal(nrow(df), 2L)
     expect_s3_class(df$date, "Date")
     expect_equal(attr(df, "eolas_name"), "nz_cpi")
   })
+})
+
+test_that("eolas_get limit returns most recent dated rows", {
+  body <- '{"data":[
+    {"date":"2018-01-01","period":"2018Q1","value":1.0},
+    {"date":"2020-01-01","period":"2020Q1","value":2.0},
+    {"date":"2024-01-01","period":"2024Q1","value":3.0},
+    {"date":"2025-01-01","period":"2025Q1","value":4.0}
+  ]}'
+  set_test_key()
+  with_mocked_bindings({
+    df <- eolas_get("nz_cpi", limit = 2L)
+    expect_equal(nrow(df), 2L)
+    expect_equal(as.character(df$date), c("2024-01-01", "2025-01-01"))
+  },
+  .eolas_use_streaming = function() FALSE,
+  eolas_http_perform = function(req) {
+    url <- httr2::req_get_url(req)
+    if (grepl("/data($|\\?)", url)) httr2_mock_resp(body) else httr2_mock_resp(MOCK_DATASET_INFO)
+  },
+  .package = "eolas")
 })
 
 test_that("eolas_get sorts rows by date (API streams in file order)", {
@@ -161,7 +211,11 @@ test_that("eolas_get_treasury tags result with NZ Treasury source", {
 test_that("print.eolas_dataset includes series name and row count", {
   with_mock_eolas(DATA_BODY, code = {
     df <- eolas_get_statsnz("nz_cpi")
-    output <- capture.output(print(df))
+    # cli print methods write to the message connection as well as stdout.
+    output <- c(
+      capture.output(print(df)),
+      capture.output(print(df), type = "message")
+    )
     expect_true(any(grepl("nz_cpi", output)))
     expect_true(any(grepl("Stats NZ", output)))
     expect_true(any(grepl("2 rows", output)))
@@ -197,69 +251,57 @@ test_that("404 raises not found error", {
 # Helper: construct an httr2_response with an empty (0-byte) body.  The normal
 # httr2_mock_resp() always supplies a JSON body; this one deliberately does not
 # so we can exercise the innermost tryCatch fallback in eolas_check_status.
-httr2_mock_resp_empty <- function(status) {
-  structure(
-    list(
-      method  = "GET",
-      url     = "https://api.eolas.fyi/test",
-      status_code = as.integer(status),
-      headers = structure(list(`content-type` = ""), class = "httr2_headers"),
-      body    = raw(0L),
-      cache   = new.env(parent = emptyenv())
-    ),
-    class = "httr2_response"
-  )
-}
-
 test_that("504 with empty body produces a clean error message (not an internal traceback)", {
-  ns <- getNamespace("eolas")
-  assign("key", "eolas_testkey", envir = ns$.eolas_env)
-  local_mocked_bindings(
+  set_test_key()
+  with_mocked_bindings(
+    {
+      err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
+      expect_s3_class(err, "error")
+      expect_match(conditionMessage(err), "504")
+      expect_false(grepl("Can't retrieve empty body", conditionMessage(err), fixed = TRUE))
+    },
     eolas_http_perform = function(...) httr2_mock_resp_empty(504L),
-    .env = ns
+    .package = "eolas"
   )
-  err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
-  expect_s3_class(err, "error")
-  # Message must mention the status code — not an internal httr2 traceback.
-  expect_match(conditionMessage(err), "504")
-  # Must NOT mention the internal httr2 helper that used to blow up.
-  expect_false(grepl("Can't retrieve empty body", conditionMessage(err), fixed = TRUE))
 })
 
 test_that("521 with empty body produces a clean error message", {
-  ns <- getNamespace("eolas")
-  assign("key", "eolas_testkey", envir = ns$.eolas_env)
-  local_mocked_bindings(
+  set_test_key()
+  with_mocked_bindings(
+    {
+      err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
+      expect_s3_class(err, "error")
+      expect_match(conditionMessage(err), "521")
+      expect_false(grepl("Can't retrieve empty body", conditionMessage(err), fixed = TRUE))
+    },
     eolas_http_perform = function(...) httr2_mock_resp_empty(521L),
-    .env = ns
+    .package = "eolas"
   )
-  err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
-  expect_s3_class(err, "error")
-  expect_match(conditionMessage(err), "521")
-  expect_false(grepl("Can't retrieve empty body", conditionMessage(err), fixed = TRUE))
 })
 
 test_that("522 with empty body produces a clean error message", {
-  ns <- getNamespace("eolas")
-  assign("key", "eolas_testkey", envir = ns$.eolas_env)
-  local_mocked_bindings(
+  set_test_key()
+  with_mocked_bindings(
+    {
+      err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
+      expect_s3_class(err, "error")
+      expect_match(conditionMessage(err), "522")
+    },
     eolas_http_perform = function(...) httr2_mock_resp_empty(522L),
-    .env = ns
+    .package = "eolas"
   )
-  err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
-  expect_s3_class(err, "error")
-  expect_match(conditionMessage(err), "522")
 })
 
 test_that("empty-body error detail includes retry hint", {
-  ns <- getNamespace("eolas")
-  assign("key", "eolas_testkey", envir = ns$.eolas_env)
-  local_mocked_bindings(
+  set_test_key()
+  with_mocked_bindings(
+    {
+      err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
+      expect_match(conditionMessage(err), "retry", ignore.case = TRUE)
+    },
     eolas_http_perform = function(...) httr2_mock_resp_empty(504L),
-    .env = ns
+    .package = "eolas"
   )
-  err <- tryCatch(eolas_get("nz_cpi"), error = function(e) e)
-  expect_match(conditionMessage(err), "retry", ignore.case = TRUE)
 })
 
 # ---------------------------------------------------------------------------

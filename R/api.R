@@ -6,7 +6,7 @@
 #' @param source Optional source filter, e.g. `"Stats NZ"` or `"OECD"`.
 #'   Use [eolas_list_statsnz()], [eolas_list_oecd()] etc. as convenient shortcuts.
 #' @param base_url Override the API base URL (useful for testing).
-#' @return A tibble (if the `tibble` package is installed) or a `data.frame`.
+#' @return A tibble.
 #' @export
 #' @examples
 #' \dontrun{
@@ -24,7 +24,87 @@ eolas_list <- function(source = NULL, base_url = EOLAS_BASE_URL) {
     rownames(df) <- NULL
   }
 
-  if (requireNamespace("tibble", quietly = TRUE)) tibble::as_tibble(df) else df
+  tibble::as_tibble(df)
+}
+
+
+.eolas_search_aliases <- list(
+  hlfs = c("hlfs", "household labour", "labour force survey", "labour force",
+           "labour market", "unemployment rate"),
+  ocr  = c("ocr", "official cash rate", "cash rate"),
+  cpi  = c("cpi", "consumer price", "inflation", "prices")
+)
+
+.eolas_search_rank <- list(
+  cpi  = c(rbnz_m1_prices = 0L, rbnz_m1_prices_longrun = 1L, nz_cpi = 2L),
+  hlfs = c(nz_unemployment = 0L, rbnz_m9_labour_market = 1L,
+           poppr_lab_national = 2L, poppr_lab_national_chars = 3L)
+)
+
+.eolas_cpi_guidance <- function() {
+  paste0(
+    "nz_cpi is OECD annual % change (quarterly). ",
+    "For CPI index levels use rbnz_m1_prices (RBNZ, quarterly index)."
+  )
+}
+
+.eolas_search_terms <- function(query) {
+  q <- tolower(trimws(query))
+  if (!nzchar(q)) return(character(0))
+  aliases <- .eolas_search_aliases[[q]]
+  if (!is.null(aliases)) aliases else q
+}
+
+.eolas_search_mask <- function(df, needles, search_description = TRUE) {
+  if (!nrow(df) || !length(needles)) return(rep(FALSE, nrow(df)))
+  cols <- intersect(c("name", "title"), names(df))
+  if (search_description) cols <- c(cols, intersect("description", names(df)))
+  if (!length(cols)) return(rep(FALSE, nrow(df)))
+  mask <- rep(FALSE, nrow(df))
+  for (col in cols) {
+    hay <- tolower(ifelse(is.na(df[[col]]), "", as.character(df[[col]])))
+    for (needle in tolower(needles)) {
+      mask <- mask | grepl(needle, hay, fixed = TRUE)
+    }
+  }
+  mask
+}
+
+
+#' Search datasets by name, title, or description
+#'
+#' Substring search over the dataset catalog. Common analyst tokens are
+#' expanded — e.g. `"HLFS"` also matches labour-force and unemployment
+#' datasets; `"OCR"` matches official cash rate series.
+#'
+#' @param query Search string (case-insensitive).
+#' @param source Optional source filter, e.g. `"RBNZ"`.
+#' @param base_url Override the API base URL (useful for testing).
+#' @return A tibble of matching datasets (same columns as [eolas_list()]).
+#' @export
+#' @examples
+#' \dontrun{
+#' eolas_key("your_key")
+#' eolas_search("HLFS")
+#' eolas_search("OCR", source = "RBNZ")
+#' }
+eolas_search <- function(query, source = NULL, base_url = EOLAS_BASE_URL) {
+  df <- eolas_list(source = source, base_url = base_url)
+  needles <- .eolas_search_terms(query)
+  rank_key <- tolower(trimws(query))
+  if (!length(needles)) {
+    return(tibble::as_tibble(df[0, , drop = FALSE]))
+  }
+  out <- tibble::as_tibble(df[.eolas_search_mask(df, needles, search_description = rank_key != "hlfs"), , drop = FALSE])
+  if (nrow(out) && "name" %in% names(out) && rank_key %in% names(.eolas_search_rank)) {
+    priority <- .eolas_search_rank[[rank_key]]
+    ord <- order(ifelse(out$name %in% names(priority), priority[out$name], 99L))
+    out <- out[ord, , drop = FALSE]
+  }
+  if (tolower(trimws(query)) %in% c("cpi", "consumer price", "consumer price index", "inflation")) {
+    cli::cli_inform(.eolas_cpi_guidance())
+  }
+  out
 }
 
 
@@ -32,7 +112,7 @@ eolas_list <- function(source = NULL, base_url = EOLAS_BASE_URL) {
 #'
 #' @param name Dataset identifier, e.g. `"nz_cpi"`.
 #' @param base_url Override the API base URL (useful for testing).
-#' @return A named list with dataset metadata.
+#' @return A one-row tibble with dataset metadata.
 #' @export
 #' @examples
 #' \dontrun{
@@ -41,7 +121,8 @@ eolas_list <- function(source = NULL, base_url = EOLAS_BASE_URL) {
 #' }
 eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
   resp <- eolas_http_get(paste0("/v1/datasets/", name), base_url = base_url)
-  httr2::resp_body_json(resp)
+  body <- httr2::resp_body_json(resp, simplifyVector = FALSE)
+  .eolas_parse_info_response(body)
 }
 
 
@@ -104,7 +185,7 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' @param end   ISO date upper bound, e.g. `"2024-12-31"`. Optional.
 #' @param limit Max rows to return. Default `NULL` requests the full dataset
 #'   (server enforces a 50,000-row cap on Free/Starter plans; Pro is unlimited).
-#'   Pass an integer to request fewer rows.
+#'   When set and a `date` column is present, returns the **most recent** N rows.
 #' @param as_sf Convert geospatial datasets to an `sf` object (CRS = WGS84).
 #'   `NULL` (default) auto-converts when the dataset has a `geometry_wkt`
 #'   column AND the `sf` package is installed. `TRUE` forces conversion (errors
@@ -116,9 +197,14 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #'   (zero-copy, no sf allocation) — suitable for DuckDB / dplyr pipelines.
 #'   Works on every dataset. Cannot be combined with `as_sf = TRUE` (stops
 #'   with an error). Requires the `arrow` package: `install.packages("arrow")`.
+#' @param meta When `TRUE` (default), fetch dataset metadata from
+#'   `GET /v1/datasets/{name}` once per session (cached) and attach it as
+#'   `eolas_meta` / `eolas_columns` attributes. Pass `FALSE` to skip the extra
+#'   round-trip. See [eolas_meta()] and [eolas_column_label()].
 #' @param base_url Override the API base URL (useful for testing).
-#' @return A `eolas_dataset` data frame with `date` coerced to `Date`, or an
-#'   `sf` object when geometry is present and conversion is enabled.
+#' @return A `eolas_dataset` tibble with `date` coerced to `Date`, or an
+#'   `sf` object when geometry is present and conversion is enabled. Table and
+#'   column metadata are attached as attributes (not printed by default).
 #' @export
 #' @examples
 #' \dontrun{
@@ -128,7 +214,7 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' ggplot(df, aes(date, value)) + geom_line()
 #' }
 eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
-                   as_sf = NULL, as_arrow = FALSE,
+                   as_sf = NULL, as_arrow = FALSE, meta = TRUE,
                    base_url = EOLAS_BASE_URL) {
 
   # ---- as_arrow / as_sf conflict guard ----------------------------------------
@@ -142,12 +228,13 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   }
 
   # ---- live path ---------------------------------------------------------------
-  # Server-side: limit=0 means "as many rows as your plan allows" (50,000 cap on
-  # Free/Starter, unlimited on Pro). NULL on the R side maps to limit=0.
+  limits <- .eolas_resolve_fetch_limit(limit)
   params <- list()
   if (!is.null(start)) params$start <- start
   if (!is.null(end))   params$end   <- end
-  params$limit <- if (is.null(limit)) 0L else as.integer(limit)
+  params$limit <- limits$fetch
+
+  meta_info <- .eolas_fetch_meta_info(name, base_url, meta)
 
   df <- .eolas_fetch_df(name, params, base_url)
 
@@ -158,6 +245,7 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
     df <- df[order(df$date), , drop = FALSE]
     rownames(df) <- NULL
   }
+  df <- .eolas_apply_row_limit(df, limits$user)
 
   # as_arrow on the live path: convert the data.frame to an arrow::Table,
   # avoiding any sf/shapely allocation. geometry_wkt stays as a character column.
@@ -172,7 +260,7 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
     return(arrow::as_arrow_table(df))
   }
 
-  result <- new_eolas_dataset(df, name = name)
+  result <- new_eolas_dataset(df, name = name, meta_info = meta_info)
 
   # Optional sf conversion. as_sf=NULL auto-converts when (a) geometry_wkt is
   # present AND (b) the sf package is installed. as_sf=TRUE forces and errors
@@ -196,9 +284,11 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
     }
     return(df)
   }
-  # Preserve eolas_dataset-style metadata so source/name attrs survive the conversion
-  vs_name   <- attr(df, "eolas_name")
-  vs_source <- attr(df, "eolas_source")
+  # Preserve eolas_dataset-style metadata so attrs survive the conversion
+  vs_name    <- attr(df, "eolas_name")
+  vs_source  <- attr(df, "eolas_source")
+  vs_meta    <- attr(df, "eolas_meta")
+  vs_columns <- attr(df, "eolas_columns")
   # Convert to plain data.frame first — sf::st_as_sf doesn't reliably drop the
   # WKT column when called on a class-extended data frame (e.g. eolas_dataset).
   plain <- as.data.frame(df)
@@ -269,7 +359,9 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   plain[["geometry_wkt"]] <- NULL
   # Geometry column is named "geometry" for consistency with the sf ecosystem.
   result <- sf::st_sf(plain, geometry = sf::st_sfc(geoms, crs = 4326))
-  if (!is.null(vs_name))   attr(result, "eolas_name")   <- vs_name
-  if (!is.null(vs_source)) attr(result, "eolas_source") <- vs_source
+  if (!is.null(vs_name))    attr(result, "eolas_name")    <- vs_name
+  if (!is.null(vs_source))  attr(result, "eolas_source")  <- vs_source
+  if (!is.null(vs_meta))    attr(result, "eolas_meta")    <- vs_meta
+  if (!is.null(vs_columns)) attr(result, "eolas_columns") <- vs_columns
   result
 }

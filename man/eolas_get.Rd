@@ -11,6 +11,7 @@ eolas_get(
   limit = NULL,
   as_sf = NULL,
   as_arrow = FALSE,
+  meta = TRUE,
   base_url = EOLAS_BASE_URL
 )
 }
@@ -23,7 +24,7 @@ eolas_get(
 
 \item{limit}{Max rows to return. Default \code{NULL} requests the full dataset
 (server enforces a 50,000-row cap on Free/Starter plans; Pro is unlimited).
-Pass an integer to request fewer rows.}
+When set and a \code{date} column is present, returns the \strong{most recent} N rows.}
 
 \item{as_sf}{Convert geospatial datasets to an \code{sf} object (CRS = WGS84).
 \code{NULL} (default) auto-converts when the dataset has a \code{geometry_wkt}
@@ -38,11 +39,17 @@ Install with \code{install.packages("sf")}. Cannot be combined with
 Works on every dataset. Cannot be combined with \code{as_sf = TRUE} (stops
 with an error). Requires the \code{arrow} package: \code{install.packages("arrow")}.}
 
+\item{meta}{When \code{TRUE} (default), fetch dataset metadata from
+\code{GET /v1/datasets/{name}} once per session (cached) and attach it as
+\code{eolas_meta} / \code{eolas_columns} attributes. Pass \code{FALSE} to skip the extra
+round-trip. See \code{\link[=eolas_meta]{eolas_meta()}} and \code{\link[=eolas_column_label]{eolas_column_label()}}.}
+
 \item{base_url}{Override the API base URL (useful for testing).}
 }
 \value{
-A \code{eolas_dataset} data frame with \code{date} coerced to \code{Date}, or an
-\code{sf} object when geometry is present and conversion is enabled.
+A \code{eolas_dataset} tibble with \code{date} coerced to \code{Date}, or an
+\code{sf} object when geometry is present and conversion is enabled. Table and
+column metadata are attached as attributes (not printed by default).
 }
 \description{
 The generic workhorse — use \code{\link[=eolas_get_statsnz]{eolas_get_statsnz()}}, \code{\link[=eolas_get_oecd]{eolas_get_oecd()}} etc. for

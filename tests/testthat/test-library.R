@@ -142,15 +142,15 @@ test_that("interactive prompt skipped in non-interactive sessions", {
       .eolas_is_interactive = function() FALSE,
       .package = "eolas"
     )
-    # utils::menu should never be reached when .eolas_is_interactive() is FALSE
+    # .eolas_cli_select should never be reached when .eolas_is_interactive() is FALSE
     local_mocked_bindings(
-      menu = function(...) { menu_called <<- TRUE; 0L },
-      .package = "utils"
+      .eolas_cli_select = function(...) { menu_called <<- TRUE; 0L },
+      .package = "eolas"
     )
     result <- suppressMessages(eolas_resolve_library_dir())
     expected <- normalizePath(path.expand("~/.cache/eolas"), mustWork = FALSE)
     expect_equal(result, expected)
-    expect_false(menu_called, info = "utils::menu must not be called in non-interactive mode")
+    expect_false(menu_called, info = ".eolas_cli_select must not be called in non-interactive mode")
   })
 })
 
@@ -177,8 +177,8 @@ test_that("interactive prompt fires when no config and session is interactive", 
       .package = "eolas"
     )
     local_mocked_bindings(
-      menu = function(...) 1L,   # choice 1 = ~/eolas-library
-      .package = "utils"
+      .eolas_cli_select = function(...) 1L,   # choice 1 = ~/eolas-library
+      .package = "eolas"
     )
     result <- suppressMessages(eolas_resolve_library_dir())
 
@@ -211,8 +211,8 @@ test_that("interactive prompt only fires once per session", {
       .package = "eolas"
     )
     local_mocked_bindings(
-      menu = function(...) { menu_call_count <<- menu_call_count + 1L; 1L },
-      .package = "utils"
+      .eolas_cli_select = function(...) { menu_call_count <<- menu_call_count + 1L; 1L },
+      .package = "eolas"
     )
 
     # First call: prompt should fire

@@ -11,6 +11,7 @@ eolas_get_local(
   freshness = "auto",
   as_sf = NULL,
   as_arrow = FALSE,
+  meta = TRUE,
   progress = NULL,
   base_url = EOLAS_BASE_URL,
   ...

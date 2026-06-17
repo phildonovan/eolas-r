@@ -39,16 +39,19 @@ eolas_check_status <- function(resp) {
   )
   detail <- body$detail %||% "Unknown error"
 
-  if (status == 401L) stop(
-    "Authentication error: invalid or missing API key. ",
-    "Check the key, or set a new one with eolas_key_save() or the ",
-    "EOLAS_API_KEY environment variable. Get a free key at https://eolas.fyi/signup",
-    call. = FALSE
-  )
+  if (status == 401L) {
+    cli::cli_abort(c(
+      "Authentication error: invalid or missing API key.",
+      "i" = "Check the key, or set a new one with {.fn eolas_key_save} or the {.envvar EOLAS_API_KEY} environment variable.",
+      "i" = "Get a free key at {.url https://eolas.fyi/signup}"
+    ), call. = FALSE)
+  }
   # 403 detail is passed through verbatim. Used for Enterprise-only endpoints
   # (e.g. `eolas_integration()`) where the server's message tells the caller
   # exactly which upgrade they need.
-  if (status == 403L) stop(paste0("Authentication error: ", detail), call. = FALSE)
+  if (status == 403L) {
+    cli::cli_abort("Authentication error: {detail}", call. = FALSE)
+  }
   if (status == 429L) {
     retry <- httr2::resp_header(resp, "Retry-After")
     limit <- httr2::resp_header(resp, "X-RateLimit-Limit")
@@ -66,10 +69,11 @@ eolas_check_status <- function(resp) {
     if (!is.null(cfray) && is.null(limit)) {
       msg <- paste0(msg, " (Blocked at the Cloudflare edge — cf-ray ", cfray, ".)")
     }
-    stop(paste0(msg, " Upgrade for higher limits: https://eolas.fyi/pricing"), call. = FALSE)
+    cli::cli_abort(paste0(msg, " Upgrade for higher limits: https://eolas.fyi/pricing"),
+                   call. = FALSE)
   }
-  if (status == 404L) stop(paste0("Not found: ", detail), call. = FALSE)
-  stop(paste0("API error (HTTP ", status, "): ", detail), call. = FALSE)
+  if (status == 404L) cli::cli_abort("Not found: {detail}", call. = FALSE)
+  cli::cli_abort("API error (HTTP {status}): {detail}", call. = FALSE)
 }
 
 eolas_http_get <- function(path, ..., base_url = EOLAS_BASE_URL) {
