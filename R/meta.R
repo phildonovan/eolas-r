@@ -124,6 +124,35 @@
   tryCatch(.eolas_info_cached(name, base_url = base_url), error = function(e) NULL)
 }
 
+.eolas_provenance_from_headers <- function(resp) {
+  if (is.null(resp)) return(list())
+  get_hdr <- function(key) {
+    val <- httr2::resp_header(resp, key)
+    if (is.null(val) || !nzchar(val)) return(NULL)
+    val
+  }
+  out <- list()
+  if (!is.null(v <- get_hdr("X-Eolas-Attribution"))) out$attribution_text <- v
+  if (!is.null(v <- get_hdr("X-Eolas-Licence"))) out$licence <- v
+  if (!is.null(v <- get_hdr("X-Eolas-Source"))) out$source <- v
+  if (!is.null(v <- get_hdr("X-Eolas-Source-URL"))) out$source_url <- v
+  if (!is.null(v <- get_hdr("X-Eolas-Namespace"))) out$namespace <- v
+  out
+}
+
+.eolas_merge_provenance <- function(meta_info, provenance) {
+  if (length(provenance) == 0L) return(meta_info)
+  if (is.null(meta_info) || !is.data.frame(meta_info) || nrow(meta_info) < 1L) {
+    return(tibble::as_tibble(as.list(provenance)))
+  }
+  for (nm in names(provenance)) {
+    if (!is.null(provenance[[nm]]) && nzchar(as.character(provenance[[nm]]))) {
+      meta_info[[nm]] <- list(provenance[[nm]])
+    }
+  }
+  meta_info
+}
+
 .eolas_attach_dataset_meta <- function(x, name, source = NULL, meta_info = NULL) {
   if (!is.null(source) && nzchar(source)) attr(x, "eolas_source") <- source
   attr(x, "eolas_name")   <- name
