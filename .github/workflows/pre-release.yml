@@ -20,7 +20,9 @@ jobs:
         run: Rscript scripts/check_client_contract.R
 
       - name: R CMD check
-        run: R CMD check --no-manual --as-cran .
+        run: |
+          R CMD build --no-manual .
+          R CMD check --no-manual --as-cran eolas_*.tar.gz
 
       - name: Install + test installed package
         run: |
