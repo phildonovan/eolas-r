@@ -51,12 +51,5 @@ jobs:
           fi
           Rscript tests/smoke-live.R
 
-  universe:
-    needs: smoke
-    # Secrets cannot be referenced in job-level `if` — gate with a repo variable.
-    if: vars.ENABLE_R_UNIVERSE == 'true'
-    uses: r-universe-org/actions/build-and-deploy@v1
-    with:
-      package: eolas
-    secrets:
-      R_UNIVERSE_SECRET: ${{ secrets.R_UNIVERSE_SECRET }}
+  # r-universe builds from r-universe.json once the repo is registered at
+  # https://universe.r-lib.org — no deploy workflow is required here.
