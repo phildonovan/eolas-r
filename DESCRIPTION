@@ -3,11 +3,11 @@ Title: Client for the eolas.fyi Statistical Data API
 Version: 1.3.17
 Authors@R: person("Virtus Solutions", email = "phil@virtus-solutions.io", role = c("aut", "cre"))
 Description: Provides convenient access to the eolas.fyi REST API
-    (<https://api.eolas.fyi>), which serves 700+ official statistical and
-    geospatial datasets from Stats NZ, the ABS, OECD, RBNZ, LINZ, NZTA, and
-    more. Source-specific functions (eolas_get_statsnz(), eolas_get_oecd(),
-    etc.) return tidy data frames ready for analysis with ggplot2, dplyr,
-    or your favourite tooling.
+    (<https://api.eolas.fyi>), which serves 1,500+ official statistical and
+    geospatial datasets from Stats NZ, OECD, RBNZ, LINZ, NZTA, and more.
+    Source-specific functions (eolas_get_statsnz(), eolas_get_oecd(), etc.)
+    return tidy data frames ready for analysis with ggplot2, dplyr, or your
+    favourite tooling.
 License: MIT + file LICENSE
 URL: https://github.com/phildonovan/eolas-r, https://eolas.fyi
 BugReports: https://github.com/phildonovan/eolas-r/issues

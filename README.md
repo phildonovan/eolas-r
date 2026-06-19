@@ -7,13 +7,13 @@
 [![release](https://img.shields.io/github/v/tag/phildonovan/eolas-r?label=release)](https://github.com/phildonovan/eolas-r/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-R client for the [eolas.fyi](https://eolas.fyi) statistical data API — 1,400+ official New Zealand statistical & geospatial datasets, plus OECD data for international comparisons, returned as tidy data frames (or `sf` objects for geospatial layers).
+R client for the [eolas.fyi](https://eolas.fyi) statistical data API — 1,500+ official New Zealand statistical & geospatial datasets, plus OECD data for international comparisons, returned as tidy data frames (or `sf` objects for geospatial layers).
 
 _Coverage is New Zealand + OECD today. Australian sources are on the roadmap — not yet available; OECD data already includes Australia (and other OECD members) for cross-country comparisons._
 
 ## Installation
 
-From [r-universe](https://phildonovan.r-universe.dev) (recommended — pre-built binaries, no compiler needed):
+From [r-universe](https://phildonovan.r-universe.dev) (recommended on Linux — pre-built binaries, no compiler needed):
 
 ```r
 install.packages("eolas", repos = c("https://phildonovan.r-universe.dev", "https://cloud.r-project.org"))
@@ -240,4 +240,5 @@ Rscript -e 'devtools::test()'
 
 ## License
 
-MIT
+MIT — applies to this client software only. Dataset use is subject to each
+source's licence and your [eolas API plan](https://eolas.fyi/#pricing).
