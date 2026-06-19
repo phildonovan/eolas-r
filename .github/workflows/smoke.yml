@@ -17,6 +17,9 @@ jobs:
         with:
           needs: check
 
+      - name: Install package (as users would)
+        run: R CMD INSTALL .
+
       - name: Live smoke script
         env:
           EOLAS_API_KEY: ${{ secrets.EOLAS_API_KEY }}
@@ -25,13 +28,4 @@ jobs:
             echo "EOLAS_API_KEY secret not configured — skipping smoke tests."
             exit 0
           fi
-          Rscript -e '
-            Sys.setenv(EOLAS_API_KEY = Sys.getenv("EOLAS_API_KEY"))
-            library(eolas)
-            stopifnot(nrow(eolas_list()) >= 100)
-            df <- eolas_get("nz_cpi", limit = 5L)
-            stopifnot(nrow(df) >= 1L, "value" %in% names(df))
-            meta <- eolas_info("nz_cpi")
-            stopifnot(identical(meta$name, "nz_cpi"))
-            message("R live smoke: OK")
-          '
+          Rscript tests/smoke-live.R
