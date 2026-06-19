@@ -30,11 +30,11 @@ default), files are returned in-memory only.}
 \value{
 A list with elements:
 \itemize{
-\item \code{platform} — the platform name as echoed by the server.
-\item \code{files} — a named list of \code{filename = content} (always populated).
-\item \code{written} — character vector of paths actually written
+\item \code{platform} -- the platform name as echoed by the server.
+\item \code{files} -- a named list of \code{filename = content} (always populated).
+\item \code{written} -- character vector of paths actually written
 (only present when \code{output_dir} is set).
-\item \code{skipped} — character vector of paths skipped because they
+\item \code{skipped} -- character vector of paths skipped because they
 already existed and \code{force = FALSE}.
 }
 }
@@ -45,10 +45,10 @@ returns the generated config files. Optionally writes them to disk.
 \details{
 Supported platforms:
 \itemize{
-\item \code{"meltano"} — \code{meltano.yml} using \code{tap-rest-api-msdk}, plus README
+\item \code{"meltano"} -- \code{meltano.yml} using \code{tap-rest-api-msdk}, plus README
 and \code{.env.example}. \verb{meltano install && meltano run tap-eolas target-jsonl} and you're loading.
-\item \code{"fivetran"} — Connector Builder YAML for paste-into-dashboard import.
-\item \code{"azure-data-factory"} — linked-service + per-dataset REST datasets
+\item \code{"fivetran"} -- Connector Builder YAML for paste-into-dashboard import.
+\item \code{"azure-data-factory"} -- linked-service + per-dataset REST datasets
 + copy pipeline JSON; usable via \verb{az datafactory} CLI or ADF Studio.
 }
 

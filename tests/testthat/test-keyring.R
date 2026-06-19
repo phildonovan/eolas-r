@@ -254,6 +254,7 @@ test_that("eolas_key_status reports none when nothing configured", {
     local_mocked_bindings(
       .keyring_get = function() "",
       .config_file_get_key = function() "",
+      .eolas_config_file = function() file.path(tempdir(), "no-such-eolas-config.json"),
       .package = "eolas"
     )
     result <- suppressMessages(eolas_key_status())

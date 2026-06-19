@@ -1,13 +1,13 @@
-# Changelog sync (OUT half of CDC) — the R port of the Python client's sync_changes.
+# Changelog sync (OUT half of CDC) -- the R port of the Python client's sync_changes.
 #
 # Incrementally syncs a cdc_serving_tier=changelog dataset via GET /v1/datasets/{name}/changes:
 # cold-start baseline (eolas_sync_bulk) + anchor the watermark, then page new changes and pk-merge
 # them into the local materialised file (eolas_merge_changes, in cdc.R). v2 sidecar holds the
 # watermark; a 410 (watermark expired) self-heals by re-baselining. Keep in lockstep with
-# eolas_data/client.py::sync_changes — both clients must converge on identical current state.
+# eolas_data/client.py::sync_changes -- both clients must converge on identical current state.
 
 .EOLAS_CHANGES_PAGE_LIMIT <- 50000L
-# Max int64 as a STRING — anchors the cold-start watermark at the feed head without replaying
+# Max int64 as a STRING -- anchors the cold-start watermark at the feed head without replaying
 # history. A numeric literal would serialise in scientific notation and break the server int parse.
 .EOLAS_SEQ_MAX <- "4611686018427387904"
 .SIDECAR_SCHEMA_VERSION_CDC <- 2L
@@ -44,7 +44,7 @@
   if (status == 410L) {
     body <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
     min_seq <- suppressWarnings(as.numeric(body$min_available_seq %||% 0))
-    cli::cli_abort(c("Sync watermark expired — the requested changes are no longer retained.",
+    cli::cli_abort(c("Sync watermark expired -- the requested changes are no longer retained.",
                      i = "Re-baselining from a fresh bulk snapshot."),
                    class = "eolas_watermark_expired",
                    min_available_seq = if (is.na(min_seq)) 0 else min_seq)
@@ -64,7 +64,7 @@
 }
 
 
-# Single tail page → X-Eolas-Seq-High (the current feed head). Anchors the cold-start watermark.
+# Single tail page -> X-Eolas-Seq-High (the current feed head). Anchors the cold-start watermark.
 .eolas_fetch_seq_high <- function(name, since_seq = .EOLAS_SEQ_MAX, base_url = EOLAS_BASE_URL) {
   resp <- tryCatch(.eolas_changes_get(name, since_seq, 1L, base_url = base_url), error = \(e) NULL)
   if (is.null(resp)) return(0)
@@ -73,7 +73,7 @@
 }
 
 
-# Page through /changes from since_seq → list(changes = data.frame, final_seq). Stop conditions
+# Page through /changes from since_seq -> list(changes = data.frame, final_seq). Stop conditions
 # mirror the Python client: explicit X-Eolas-Truncated wins; else row_count < limit heuristic;
 # empty page always stops. Propagates the eolas_watermark_expired condition (HTTP 410).
 .eolas_fetch_all_change_pages <- function(name, since_seq, base_url = EOLAS_BASE_URL) {
@@ -159,13 +159,13 @@ eolas_sync_changes <- function(name, path, format = "parquet", progress = NULL,
   meta <- eolas_info(name, base_url = base_url)
   pk_columns <- meta$pk_columns
   if (is.null(pk_columns) || length(pk_columns) == 0) pk_columns <- sidecar$pk_columns
-  # Normalise to a plain character vector — pk_columns may arrive as a JSON-decoded list (mock) or
+  # Normalise to a plain character vector -- pk_columns may arrive as a JSON-decoded list (mock) or
   # vector (jsonlite simplifyVector); .eolas_pk_key needs a character vector to index columns.
   pk_columns <- as.character(unlist(pk_columns))
   current_state_filter <- meta$current_state_filter %||% sidecar$current_state_filter
 
   do_baseline <- function(reason) {
-    cli::cli_alert_info("{.field {name}}: {reason} — baselining from a full bulk snapshot.")
+    cli::cli_alert_info("{.field {name}}: {reason} -- baselining from a full bulk snapshot.")
     bulk <- eolas_sync_bulk(name, path = out_path, format = fmt, freshness = "current",
                             progress = progress, force = force, base_url = base_url)
     high <- .eolas_fetch_seq_high(name, base_url = base_url)
@@ -220,7 +220,7 @@ eolas_sync_changes <- function(name, path, format = "parquet", progress = NULL,
   .eolas_write_changelog_sidecar(sidecar_path, name, fmt, pk_columns, current_state_filter,
                                  baseline_snapshot_id, fetched$final_seq)
   cli::cli_alert_success(
-    "Applied {nrow(changes)} change{?s} to {.path {out_path}} (seq {prev_watermark} → {fetched$final_seq}).")
+    "Applied {nrow(changes)} change{?s} to {.path {out_path}} (seq {prev_watermark} -> {fetched$final_seq}).")
   list(status = "updated", sync_mode = "changelog", previous_seq = prev_watermark,
        current_seq = fetched$final_seq, ops_applied = nrow(changes), path = out_path,
        current_snapshot_id = baseline_snapshot_id)

@@ -43,7 +43,7 @@ a raw vector when \code{path = NULL}.
 }
 \description{
 Wraps \code{GET /v1/bulk/{namespace}/{table}} to download a whole Iceberg table
-as a Parquet, gzipped-CSV, or GeoParquet snapshot — no row caps, no
+as a Parquet, gzipped-CSV, or GeoParquet snapshot -- no row caps, no
 pagination.
 }
 \details{
@@ -55,7 +55,7 @@ from Cloudflare's edge cache in milliseconds.
 \section{Freshness}{
 
 \code{freshness = "auto"} (the default) omits the query parameter so the server
-redirects to the right level for your plan — Free accounts get the latest
+redirects to the right level for your plan -- Free accounts get the latest
 monthly snapshot; Pro accounts get the current Iceberg snapshot. Pass
 \code{"monthly"} or \code{"current"} to override explicitly.
 }
@@ -63,11 +63,11 @@ monthly snapshot; Pro accounts get the current Iceberg snapshot. Pass
 \section{Formats}{
 
 \describe{
-\item{\code{"parquet"}}{Apache Parquet — best for R (via the \code{arrow} package),
+\item{\code{"parquet"}}{Apache Parquet -- best for R (via the \code{arrow} package),
 Polars, DuckDB, Spark.}
-\item{\code{"csv_gz"}}{Gzipped CSV — readable by \code{read.csv()},
+\item{\code{"csv_gz"}}{Gzipped CSV -- readable by \code{read.csv()},
 \code{readr::read_csv()}, Excel.}
-\item{\code{"geoparquet"}}{GeoParquet 1.0 — only available on datasets with
+\item{\code{"geoparquet"}}{GeoParquet 1.0 -- only available on datasets with
 geometry; read with \code{sfarrow::st_read_parquet()} or \code{geopandas}.}
 }
 }
@@ -75,11 +75,11 @@ geometry; read with \code{sfarrow::st_read_parquet()} or \code{geopandas}.}
 \section{Error conditions}{
 
 \describe{
-\item{HTTP 402}{Stops with \code{"Bulk upgrade required:"} — \code{freshness = "current"}
+\item{HTTP 402}{Stops with \code{"Bulk upgrade required:"} -- \code{freshness = "current"}
 requires a Pro plan.}
-\item{HTTP 403 (licence)}{Stops with \code{"Bulk licence restricted:"} — dataset is
+\item{HTTP 403 (licence)}{Stops with \code{"Bulk licence restricted:"} -- dataset is
 excluded from bulk (e.g. OECD). Use \code{eolas_get()} instead.}
-\item{HTTP 503}{Stops with \code{"Bulk not yet available:"} — monthly snapshot
+\item{HTTP 503}{Stops with \code{"Bulk not yet available:"} -- monthly snapshot
 not yet generated.}
 }
 }

@@ -35,6 +35,8 @@ Install with \code{install.packages("sf")}. Cannot be combined with
 \item{as_arrow}{When \code{TRUE}, return an \code{arrow::Table} instead of a
 data frame or \code{sf} object (zero-copy, no geometry materialisation).
 Cannot be combined with \code{as_sf = TRUE}.}
+
+\item{...}{Forwarded to \code{\link[=eolas_get]{eolas_get()}} (\code{progress}, \code{force}, \code{cache_dir}, etc.).}
 }
 \description{
 Fetch an NZ Police / MoJ dataset

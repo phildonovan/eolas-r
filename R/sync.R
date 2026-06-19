@@ -1,13 +1,13 @@
-# Unified sync dispatcher — routes on the dataset's CDC serving tier (mirrors the Python client's
+# Unified sync dispatcher -- routes on the dataset's CDC serving tier (mirrors the Python client's
 # Client.sync()). changelog-tier datasets get incremental /changes sync; everything else gets the
 # full-snapshot bulk path. The caller does not need to know which tier a dataset is.
 
 #' Sync a dataset to a local file, auto-routing on its CDC serving tier
 #'
 #' Reads `cdc_serving_tier` from the dataset metadata and dispatches:
-#' * `"changelog"` → [eolas_sync_changes()] — incremental /changes feed, pk-merged into the local file
+#' * `"changelog"` -> [eolas_sync_changes()] -- incremental /changes feed, pk-merged into the local file
 #'   (first call downloads a baseline; later calls apply only what changed).
-#' * anything else (`"snapshot"`) → [eolas_sync_bulk()] — full-snapshot download, refreshed when the
+#' * anything else (`"snapshot"`) -> [eolas_sync_bulk()] -- full-snapshot download, refreshed when the
 #'   server snapshot changes.
 #'
 #' Both paths keep a `paste0(path, ".eolas-meta.json")` sidecar and return a list with at least

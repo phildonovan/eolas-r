@@ -59,7 +59,7 @@ eolas_cache_clear("nz_parcels")
 # Metadata only (e.g. after a warehouse schema change)
 eolas_cache_clear("nz_cpi", files = FALSE)
 
-# Nuclear option — wipe library files + all session metadata
+# Nuclear option -- wipe library files + all session metadata
 eolas_cache_clear(name = NULL)
 }
 }

@@ -44,10 +44,14 @@ Cannot be combined with \code{as_arrow = TRUE} (stops with an error).}
 
 \item{as_arrow}{When \code{TRUE}, skip all native geometry materialisation and
 return an \code{arrow::Table} directly.  Geometry stays as Arrow buffers
-(zero-copy) — suitable for DuckDB / dplyr pipelines that work on a
+(zero-copy) -- suitable for DuckDB / dplyr pipelines that work on a
 sample before converting to sf.  Works for geo and non-geo datasets.
 Cannot be combined with \code{as_sf = TRUE} (stops with an error).  Requires
 the \code{arrow} package: \code{install.packages("arrow")}.}
+
+\item{meta}{When \code{TRUE} (default), attach dataset metadata from
+\code{\link[=eolas_info]{eolas_info()}} as object attributes. Pass \code{FALSE} to skip the extra
+round-trip.}
 
 \item{progress}{Control progress feedback for the two bulk phases:
 \strong{download} (streaming byte bar while fetching from CDN) and
@@ -76,12 +80,12 @@ interactive R session or R Markdown notebook.  On the first call it fetches
 the bulk file from CDN (milliseconds for monthly snapshots) and writes it to
 \verb{~/.cache/eolas/}.  On subsequent calls a lightweight HEAD request checks
 whether the local file is still current; if so the cached copy is read
-directly — zero network I/O on the data payload.
+directly -- zero network I/O on the data payload.
 }
 \details{
 If you have been calling \code{eolas_get("nz_parcels")} on a 3-million-row
 geospatial dataset and it takes 15+ minutes, use \code{eolas_get_local()}
-instead — it serves a pre-materialised GeoParquet from CDN, not a live
+instead -- it serves a pre-materialised GeoParquet from CDN, not a live
 Iceberg scan through the row-oriented data endpoint.
 }
 \section{Format auto-detection}{
@@ -106,14 +110,14 @@ preserved as a character column (extracted from the WKB binary by the
 \dontrun{
 eolas_key("your_key")
 
-# 3-million-row geospatial dataset — first call downloads GeoParquet from CDN;
+# 3-million-row geospatial dataset -- first call downloads GeoParquet from CDN;
 # subsequent calls return in <1 s via sidecar check.
 gdf <- eolas_get_local("nz_parcels")
 
 # Non-geo tabular dataset
 df <- eolas_get_local("nz_cpi")
 
-# Explicit cache directory (overrides library config — highest priority)
+# Explicit cache directory (overrides library config -- highest priority)
 df <- eolas_get_local("nz_cpi", cache_dir = "/data/eolas-cache")
 
 # Force CSV format
@@ -122,7 +126,7 @@ df <- eolas_get_local("nz_cpi", format = "csv_gz")
 # Keep plain data.frame even for geo datasets
 df <- eolas_get_local("nz_parcels", as_sf = FALSE)
 
-# Arrow table — zero-copy, no sf allocation; suitable for DuckDB / dplyr
+# Arrow table -- zero-copy, no sf allocation; suitable for DuckDB / dplyr
 tbl <- eolas_get_local("nz_parcels", as_arrow = TRUE)
 }
 }

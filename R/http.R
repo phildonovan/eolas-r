@@ -24,7 +24,7 @@ eolas_check_status <- function(resp) {
 
   # Double-tryCatch: first try JSON, then plain string, then synthesise a
   # message from the status code alone. The innermost fallback is critical for
-  # CF 504/521/522 and origin-timeout responses that deliver an empty body —
+  # CF 504/521/522 and origin-timeout responses that deliver an empty body --
   # resp_body_string() calls resp_body_raw() which cli_abort()s on 0-byte bodies,
   # producing a confusing internal traceback instead of a clear "retry" message.
   body <- tryCatch(
@@ -32,7 +32,7 @@ eolas_check_status <- function(resp) {
     error = function(e) tryCatch(
       list(detail = httr2::resp_body_string(resp)),
       error = function(e2) list(detail = sprintf(
-        "Empty response body (status %d). Likely CF gateway or origin timeout — retry.",
+        "Empty response body (status %d). Likely CF gateway or origin timeout -- retry.",
         httr2::resp_status(resp)
       ))
     )
@@ -67,7 +67,7 @@ eolas_check_status <- function(resp) {
     # A 429 with our X-RateLimit-* headers came from the API; one with only a
     # cf-ray was thrown at the Cloudflare edge before reaching the origin.
     if (!is.null(cfray) && is.null(limit)) {
-      msg <- paste0(msg, " (Blocked at the Cloudflare edge — cf-ray ", cfray, ".)")
+      msg <- paste0(msg, " (Blocked at the Cloudflare edge -- cf-ray ", cfray, ".)")
     }
     cli::cli_abort(paste0(msg, " Upgrade for higher limits: https://eolas.fyi/pricing"),
                    call. = FALSE)

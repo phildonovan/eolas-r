@@ -16,7 +16,7 @@ A one-row tibble, or \code{NULL} when metadata was not attached
 }
 \description{
 Returns the one-row metadata tibble attached by \code{\link[=eolas_get]{eolas_get()}},
-\code{\link[=eolas_get_local]{eolas_get_local()}}, and source-specific getters — title, description,
+\code{\link[=eolas_get_local]{eolas_get_local()}}, and source-specific getters -- title, description,
 licence, refresh cadence, and provenance fields. The full \code{description}
 is available here but is \strong{not} printed by default; call this accessor
 when you need the prose.

@@ -17,7 +17,7 @@ eolas_merge_changes(
 \item{changes_df}{Change rows from the \verb{/changes} feed. Must contain \verb{_eolas_seq} and \verb{_eolas_op}.}
 
 \item{pk_columns}{Character vector of primary-key columns (non-empty). The merge keys on these
-only — never on geometry.}
+only -- never on geometry.}
 
 \item{current_state_filter}{Optional \code{"<col> = <value>"} filter applied after the merge.}
 }

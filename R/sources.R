@@ -7,7 +7,7 @@
   as_arrow <- isTRUE(dots$as_arrow)
   result <- do.call(eolas_get, c(list(name = name, base_url = base_url), dots))
   # When as_arrow=TRUE the result is an arrow::Table which does not accept
-  # arbitrary attribute assignment — skip the source tag silently.
+  # arbitrary attribute assignment -- skip the source tag silently.
   if (!as_arrow) {
     attr(result, "eolas_source") <- source
     .eolas_warn_source_mismatch(name, source, attr(result, "eolas_meta"))
@@ -45,12 +45,7 @@
 #' @param as_arrow When `TRUE`, return an `arrow::Table` instead of a
 #'   data frame or `sf` object (zero-copy, no geometry materialisation).
 #'   Cannot be combined with `as_sf = TRUE`.
-#' @param progress Bulk download/read progress when a whole-dataset pull is
-#'   auto-routed to [eolas_get_local()]. `NULL` (default) shows progress in
-#'   interactive sessions. See [eolas_get()].
-#' @param force When auto-routed to [eolas_get_local()], bypass session metadata
-#'   and on-disk bulk caches. Ignored on the live API path. See
-#'   [eolas_cache_clear()].
+#' @param ... Forwarded to [eolas_get()] (`progress`, `force`, `cache_dir`, etc.).
 #' @return A `eolas_dataset` data frame, an `sf` object when geometry is present
 #'   and conversion is enabled, or an `arrow::Table` when `as_arrow = TRUE`.
 #' @export
@@ -143,7 +138,7 @@ eolas_list_linz <- function() .eolas_list_source("LINZ")
 #' Fetch a Stats NZ geospatial dataset (boundaries, census meshblocks, etc.).
 #'
 #' The server returns `source = "Stats NZ"` for both SDMX time series and
-#' Datafinder geospatial datasets — the eolas_dataset attribute reflects that.
+#' Datafinder geospatial datasets -- the eolas_dataset attribute reflects that.
 #' This helper exists as a discoverability shortcut, not a separate source.
 #' @inheritParams eolas_get_statsnz
 #' @export

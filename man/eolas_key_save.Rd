@@ -17,7 +17,7 @@ Invisibly \code{NULL}.
 Stores the key in the OS-native credential store (macOS Keychain, Windows
 Credential Manager, Linux Secret Service) under
 \code{service = "eolas"}, \code{username = "api-key"}. Once saved, \code{\link[=eolas_key]{eolas_key()}} and
-every \verb{eolas_get_*()} call will find the key automatically — no environment
+every \verb{eolas_get_*()} call will find the key automatically -- no environment
 variable or explicit call needed in future sessions.
 }
 \details{

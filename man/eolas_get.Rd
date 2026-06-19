@@ -39,7 +39,7 @@ Install with \code{install.packages("sf")}. Cannot be combined with
 
 \item{as_arrow}{When \code{TRUE}, return an \code{arrow::Table} instead of a
 \code{data.frame} or \code{sf} object.  Geometry stays as Arrow buffers
-(zero-copy, no sf allocation) — suitable for DuckDB / dplyr pipelines.
+(zero-copy, no sf allocation) -- suitable for DuckDB / dplyr pipelines.
 Works on every dataset. Cannot be combined with \code{as_sf = TRUE} (stops
 with an error). Requires the \code{arrow} package: \code{install.packages("arrow")}.}
 
@@ -57,11 +57,10 @@ auto-routed to \code{\link[=eolas_get_local]{eolas_get_local()}}. \code{NULL} (d
 interactive sessions; set \code{EOLAS_NO_PROGRESS=1} to suppress. Ignored on the
 live API path. See \code{\link[=eolas_get_local]{eolas_get_local()}} for \code{"download"} / \code{"read"} selectors.}
 
-\item{force}{When \code{TRUE}, bypass caches for this dataset: drop the session
-\code{\link[=eolas_info]{eolas_info()}} cache and, when auto-routed to \code{\link[=eolas_get_local]{eolas_get_local()}},
-re-download the on-disk bulk file even when the sidecar says it is current.
-On the live API path, data is always fetched fresh; \code{force} ensures
-metadata and bulk routing decisions are too. See \code{\link[=eolas_cache_clear]{eolas_cache_clear()}}.}
+\item{force}{When \code{TRUE} and the request is auto-routed to \code{\link[=eolas_get_local]{eolas_get_local()}},
+drop session \code{\link[=eolas_info]{eolas_info()}} cache and re-download the on-disk bulk file
+even when the sidecar says it is current. Ignored on the live API path
+(no row cache there). See \code{\link[=eolas_cache_clear]{eolas_cache_clear()}}.}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 
@@ -74,13 +73,13 @@ A \code{eolas_dataset} tibble with \code{date} coerced to \code{Date}, or an
 column metadata are attached as attributes (not printed by default).
 }
 \description{
-The generic workhorse — use \code{\link[=eolas_get_statsnz]{eolas_get_statsnz()}}, \code{\link[=eolas_get_oecd]{eolas_get_oecd()}} etc. for
+The generic workhorse -- use \code{\link[=eolas_get_statsnz]{eolas_get_statsnz()}}, \code{\link[=eolas_get_oecd]{eolas_get_oecd()}} etc. for
 source-tagged results and a nicer print output.
 }
 \details{
 Hits the live \verb{/v1/datasets/\{name\}/data} endpoint for slices and smaller
 datasets.  Whole-dataset pulls on large or geospatial tables are
-\strong{auto-routed} to \code{\link[=eolas_get_local]{eolas_get_local()}} (CDN-backed Parquet/GeoParquet) —
+\strong{auto-routed} to \code{\link[=eolas_get_local]{eolas_get_local()}} (CDN-backed Parquet/GeoParquet) --
 so \code{eolas_get("nz_addresses")} and \code{eolas_get_linz("nz_addresses")} work
 without hitting the API 413 guard.
 }

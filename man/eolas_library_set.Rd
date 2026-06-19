@@ -7,7 +7,7 @@
 eolas_library_set(path)
 }
 \arguments{
-\item{path}{Character string — the directory path to use as the library.
+\item{path}{Character string -- the directory path to use as the library.
 Supports \code{~}-prefixed paths.}
 }
 \value{

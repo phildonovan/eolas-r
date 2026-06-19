@@ -78,7 +78,7 @@ eolas_list <- function(source = NULL, base_url = EOLAS_BASE_URL) {
 #' Search datasets by name, title, or description
 #'
 #' Substring search over the dataset catalog. Common analyst tokens are
-#' expanded — e.g. `"HLFS"` also matches labour-force and unemployment
+#' expanded -- e.g. `"HLFS"` also matches labour-force and unemployment
 #' datasets; `"OCR"` matches official cash rate series.
 #'
 #' @param query Search string (case-insensitive).
@@ -132,14 +132,14 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 
 
 # Internal: one-time nudge for users on the slower JSON path. Pushy (every
-# JSON-path user is told the exact fix + the measured win) but never aborts —
+# JSON-path user is told the exact fix + the measured win) but never aborts --
 # `arrow` stays in Suggests so install never breaks on a constrained box.
 .eolas_nag_arrow_once <- function() {
   if (isTRUE(.eolas_runtime$arrow_nagged)) return(invisible())
   .eolas_runtime$arrow_nagged <- TRUE
   cli::cli_alert_info(c(
     "Using the slower JSON transport.",
-    "i" = "Install {.pkg arrow} for {.strong much faster} downloads (~5× end-to-end, ~82× parse on large datasets): {.run install.packages(\"arrow\")}"
+    "i" = "Install {.pkg arrow} for {.strong much faster} downloads (~5x end-to-end, ~82x parse on large datasets): {.run install.packages(\"arrow\")}"
   ))
 }
 
@@ -163,7 +163,7 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 }
 
 # Internal: fetch dataset rows as a data.frame. Negotiates Arrow IPC over the
-# wire (typed, columnar — far faster than JSON for large pulls), transparently
+# wire (typed, columnar -- far faster than JSON for large pulls), transparently
 # falling back to JSON for older servers, a missing `arrow` package, or any
 # parse issue. The returned data.frame is identical either way.
 .eolas_fetch_df <- function(name, params, base_url, envelope = FALSE) {
@@ -187,7 +187,7 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
           data_sources = NULL
         ))
       }
-      # Old server ignored format=arrow — remember so we don't pay the failed
+      # Old server ignored format=arrow -- remember so we don't pay the failed
       # round-trip on every future call this session.
       if (!is.null(resp)) .eolas_runtime$arrow_supported <- FALSE
     }
@@ -209,12 +209,12 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 
 #' Fetch dataset rows
 #'
-#' The generic workhorse — use [eolas_get_statsnz()], [eolas_get_oecd()] etc. for
+#' The generic workhorse -- use [eolas_get_statsnz()], [eolas_get_oecd()] etc. for
 #' source-tagged results and a nicer print output.
 #'
 #' Hits the live `/v1/datasets/{name}/data` endpoint for slices and smaller
 #' datasets.  Whole-dataset pulls on large or geospatial tables are
-#' **auto-routed** to [eolas_get_local()] (CDN-backed Parquet/GeoParquet) —
+#' **auto-routed** to [eolas_get_local()] (CDN-backed Parquet/GeoParquet) --
 #' so `eolas_get("nz_addresses")` and `eolas_get_linz("nz_addresses")` work
 #' without hitting the API 413 guard.
 #'
@@ -232,7 +232,7 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #'   `as_arrow = TRUE`.
 #' @param as_arrow When `TRUE`, return an `arrow::Table` instead of a
 #'   `data.frame` or `sf` object.  Geometry stays as Arrow buffers
-#'   (zero-copy, no sf allocation) — suitable for DuckDB / dplyr pipelines.
+#'   (zero-copy, no sf allocation) -- suitable for DuckDB / dplyr pipelines.
 #'   Works on every dataset. Cannot be combined with `as_sf = TRUE` (stops
 #'   with an error). Requires the `arrow` package: `install.packages("arrow")`.
 #' @param meta When `TRUE` (default), fetch dataset metadata from
@@ -287,7 +287,7 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
 
   limits <- .eolas_resolve_fetch_limit(limit)
 
-  # Whole-dataset pull on large/geo tables → bulk cache (mirrors Python get()).
+  # Whole-dataset pull on large/geo tables -> bulk cache (mirrors Python get()).
   if (is.null(start) && is.null(end) && is.null(limit) &&
       !isTRUE(envelope) && !isTRUE(as_arrow)) {
     routed <- .eolas_maybe_route_get_local(
@@ -304,7 +304,7 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
 
   meta_info <- .eolas_fetch_meta_info(name, base_url, meta)
 
-  # Positive limits on large/geo datasets must reach the API — limit=0 triggers 413.
+  # Positive limits on large/geo datasets must reach the API -- limit=0 triggers 413.
   if (!is.null(limits$user) && limits$user > 0L &&
       is.null(start) && is.null(end) &&
       !is.null(meta_info) && .eolas_live_pull_blocked(meta_info)) {
@@ -323,7 +323,7 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
 
   if ("date" %in% names(df)) {
     df$date <- as.Date(df$date)
-    # API streams from Iceberg in file order, not chronological — sort here so
+    # API streams from Iceberg in file order, not chronological -- sort here so
     # callers can `ggplot(df, aes(date, value)) + geom_line()` without zigzag.
     df <- df[order(df$date), , drop = FALSE]
     rownames(df) <- NULL
@@ -373,7 +373,7 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   vs_source  <- attr(df, "eolas_source")
   vs_meta    <- attr(df, "eolas_meta")
   vs_columns <- attr(df, "eolas_columns")
-  # Tibble backing — sf::st_as_sf doesn't reliably drop the WKT column when
+  # Tibble backing -- sf::st_as_sf doesn't reliably drop the WKT column when
   # called on a class-extended data frame (e.g. eolas_dataset).
   plain <- if (inherits(df, "tbl_df")) {
     tibble::as_tibble(df)
@@ -381,7 +381,7 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
     tibble::as_tibble(as.data.frame(df))
   }
 
-  # Some NZ geospatial datasets legitimately contain rows with no geometry —
+  # Some NZ geospatial datasets legitimately contain rows with no geometry --
   # e.g. non-digitised "oceanic" / "area outside region" meshblocks. A single
   # such row makes sf::st_as_sf(wkt=) abort the whole conversion with
   # "OGR: Unsupported geometry type". Parse defensively: blank/NA/sentinel
@@ -394,7 +394,7 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
 
   # Cheap shape screen: a WKT value must start with an OGC/ISO geometry
   # keyword (optionally SRID-prefixed). Values that fail this are not WKT at
-  # all (sentinels, error text) — classify them without handing GDAL a
+  # all (sentinels, error text) -- classify them without handing GDAL a
   # garbage string, which both avoids GDAL's stderr chatter and is faster.
   wkt_kw <- paste0(
     "^(SRID=\\d+\\s*;\\s*)?(POINT|LINESTRING|POLYGON|MULTIPOINT|",

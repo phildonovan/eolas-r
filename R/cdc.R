@@ -1,7 +1,7 @@
 # CDC merge utilities for the changelog sync (OUT half of CDC).
 #
 # Pure merge logic, separated from HTTP so it can be unit-tested without the network.
-# This is a faithful port of the Python client's eolas_data/cdc.py — the two clients MUST
+# This is a faithful port of the Python client's eolas_data/cdc.py -- the two clients MUST
 # reconstruct identical current state from the same feed (the cross-language correctness
 # contract). Keep this in lockstep with cdc.py.
 #
@@ -9,7 +9,7 @@
 #   1. sort the change batch by _eolas_seq ascending (enforced for correctness)
 #   2. collect the set of pks touched by ANY change row (including deletes)
 #   3. drop ALL local rows whose pk matches a touched pk
-#   4. append change rows where _eolas_op != "D" (i.e. I/U) — the new state for those pks
+#   4. append change rows where _eolas_op != "D" (i.e. I/U) -- the new state for those pks
 #   5. apply current_state_filter (e.g. "is_current = true" for SCD2)
 #   6. strip the _eolas_* meta columns before returning
 #
@@ -107,7 +107,7 @@ eolas_apply_current_state_filter <- function(df, filter_expr) {
 #' @param local_df Current local materialised state (may be a 0-row frame with the right columns).
 #' @param changes_df Change rows from the `/changes` feed. Must contain `_eolas_seq` and `_eolas_op`.
 #' @param pk_columns Character vector of primary-key columns (non-empty). The merge keys on these
-#'   only — never on geometry.
+#'   only -- never on geometry.
 #' @param current_state_filter Optional `"<col> = <value>"` filter applied after the merge.
 #' @return The merged current-state data frame, meta columns stripped, row names reset.
 #' @export

@@ -1,4 +1,4 @@
-# eolas_dataset S3 class — a data frame with name/source metadata attached
+# eolas_dataset S3 class -- a data frame with name/source metadata attached
 
 new_eolas_dataset <- function(df, name, source = NULL, meta_info = NULL) {
   if (!inherits(df, "tbl_df")) {
@@ -28,9 +28,9 @@ print.eolas_dataset <- function(x, ...) {
 
 
 # `eolas_plot()` was removed in v1.3.0. It silently mis-rendered datasets
-# with multiple series per date — it auto-picked `value` as the y column
+# with multiple series per date -- it auto-picked `value` as the y column
 # and drew a single line, which produced zigzag traces wherever the
 # response had a dimension column (e.g. measure, frequency, age band).
 # Rather than ship a helper that needs to know each dataset's shape, we
-# leave plotting to the caller — ggplot2 / plotly know better than we do
+# leave plotting to the caller -- ggplot2 / plotly know better than we do
 # once you have a tidy data frame. See README for one-liners.

@@ -11,7 +11,7 @@
 #   - keyring is not installed
 #   - no entry exists under service="eolas", username="api-key"
 #   - the backend is locked / unavailable (headless CI / server)
-# Never raises — callers treat "" as "not found".
+# Never raises -- callers treat "" as "not found".
 .keyring_get <- function() {
   if (!requireNamespace("keyring", quietly = TRUE)) {
     return("")
@@ -48,7 +48,7 @@ eolas_key <- function(key) {
 #' Stores the key in the OS-native credential store (macOS Keychain, Windows
 #' Credential Manager, Linux Secret Service) under
 #' `service = "eolas"`, `username = "api-key"`. Once saved, [eolas_key()] and
-#' every `eolas_get_*()` call will find the key automatically — no environment
+#' every `eolas_get_*()` call will find the key automatically -- no environment
 #' variable or explicit call needed in future sessions.
 #'
 #' The same keyring slot is read by the Python `eolas-data` client, so a key
@@ -197,9 +197,9 @@ eolas_key_status <- function() {
   cli::cli_alert_warning("No API key configured.")
   cli::cli_inform(c(
     "Options:",
-    "*" = "{.run eolas::eolas_key_save()} — OS keyring (recommended for workstations)",
-    "*" = "{.run [eolas_key()](eolas::eolas_key())} — in-session only",
-    "*" = "{.code Sys.setenv(EOLAS_API_KEY = \"vs_...\")} — environment variable"
+    "*" = "{.run eolas::eolas_key_save()} -- OS keyring (recommended for workstations)",
+    "*" = "{.run [eolas_key()](eolas::eolas_key())} -- in-session only",
+    "*" = "{.code Sys.setenv(EOLAS_API_KEY = \"vs_...\")} -- environment variable"
   ))
   invisible("none")
 }
@@ -207,7 +207,7 @@ eolas_key_status <- function() {
 # Internal: mask all but the first 8 characters of a key.
 .mask_key <- function(key) {
   if (!nzchar(key)) return("(none)")
-  paste0(substr(key, 1, 8), "…")
+  paste0(substr(key, 1, 8), "...")
 }
 
 # Internal: read api_key from ~/.eolas/config.json (the slot the Python CLI's
@@ -228,7 +228,7 @@ eolas_key_status <- function() {
 }
 
 eolas_get_key_internal <- function() {
-  # Precedence: in-session → EOLAS_API_KEY → OS keyring → ~/.eolas/config.json → error
+  # Precedence: in-session -> EOLAS_API_KEY -> OS keyring -> ~/.eolas/config.json -> error
   key <- .eolas_env$key %||%
          Sys.getenv("EOLAS_API_KEY", unset = "") %or_empty%
          .keyring_get() %or_empty%

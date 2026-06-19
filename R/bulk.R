@@ -1,7 +1,7 @@
-# Bulk download — wraps GET /v1/bulk/{namespace}/{table}
+# Bulk download -- wraps GET /v1/bulk/{namespace}/{table}
 #
 # The endpoint requires both namespace and table, which the server knows but
-# the user addresses only by name. We resolve name → namespace + table with a
+# the user addresses only by name. We resolve name -> namespace + table with a
 # quick GET /v1/datasets/{name} call (already wrapped as eolas_info()), then
 # fetch the binary file.
 
@@ -10,12 +10,12 @@
 .BULK_VALID_FRESHNESS  <- c("auto", "monthly", "current")
 
 # ---------------------------------------------------------------------------
-# Internal TTY gate — thin wrapper so tests can mock it cleanly via
+# Internal TTY gate -- thin wrapper so tests can mock it cleanly via
 # with_mocked_bindings(.package = "eolas").
 # ---------------------------------------------------------------------------
 .eolas_is_interactive <- function() interactive()
 
-# Internal streaming gate — returns TRUE to use req_perform_connection()
+# Internal streaming gate -- returns TRUE to use req_perform_connection()
 # (streaming, chunk-by-chunk progress), FALSE to use eolas_http_perform()
 # (buffered, for test mocks that return a pre-built response).
 # Tests mock this to FALSE via with_mocked_bindings(.package = "eolas").
@@ -23,13 +23,13 @@
 
 # Resolve the tri-state `progress` argument to download/read logicals.
 # `progress` may be:
-#   NULL     — auto (both phases follow interactive() / EOLAS_NO_PROGRESS)
-#   TRUE     — both phases on
-#   FALSE    — both phases off
-#   "both"   — both on (alias of TRUE)
-#   "download" — byte stream bar only (network)
-#   "read"   — disk-load spinner only (Parquet/sf materialisation)
-#   "none"   — both off (alias of FALSE)
+#   NULL     -- auto (both phases follow interactive() / EOLAS_NO_PROGRESS)
+#   TRUE     -- both phases on
+#   FALSE    -- both phases off
+#   "both"   -- both on (alias of TRUE)
+#   "download" -- byte stream bar only (network)
+#   "read"   -- disk-load spinner only (Parquet/sf materialisation)
+#   "none"   -- both off (alias of FALSE)
 .eolas_resolve_progress_phases <- function(progress) {
   if (identical(progress, FALSE)) {
     return(list(download = FALSE, read = FALSE))
@@ -83,11 +83,11 @@
 # Stream the body of a performing httr2 connection-response to a file,
 # optionally showing a cli progress bar.
 #
-# `resp`        — connection response from req_perform_connection().
-# `dest_path`   — file path to write into (opened in binary mode).
-# `total_bytes` — expected size from Content-Length, or NA for unknown.
-# `label`       — short description shown in the bar (e.g. filename).
-# `show_bar`    — logical; TRUE → show cli bar, FALSE → silent.
+# `resp`        -- connection response from req_perform_connection().
+# `dest_path`   -- file path to write into (opened in binary mode).
+# `total_bytes` -- expected size from Content-Length, or NA for unknown.
+# `label`       -- short description shown in the bar (e.g. filename).
+# `show_bar`    -- logical; TRUE -> show cli bar, FALSE -> silent.
 #
 # Returns the number of bytes written.
 .eolas_resp_content_length <- function(resp) {
@@ -108,7 +108,7 @@
       "{cli::pb_rate_bytes} ETA {cli::pb_eta}"
     )
   } else {
-    # CDN often omits Content-Length — never reference pb_total_bytes/pb_eta then.
+    # CDN often omits Content-Length -- never reference pb_total_bytes/pb_eta then.
     paste0(
       "{cli::pb_name} ",
       "{cli::pb_current_bytes} ",
@@ -186,7 +186,7 @@
   )
 }
 
-# Thin wrapper around sfarrow::st_read_parquet() — exists solely so tests can
+# Thin wrapper around sfarrow::st_read_parquet() -- exists solely so tests can
 # mock it via local_mocked_bindings(.env = getNamespace("eolas")) without
 # having to patch the sfarrow namespace directly.
 .eolas_sfarrow_read_parquet <- function(file_path) {
@@ -194,8 +194,8 @@
 }
 
 # Read a `.geo.parquet` via `arrow::read_parquet()` and decode the binary WKB
-# `geometry` column into an `sf` object — handling zero-length WKB elements
-# (empty/null source geometries — e.g. 21% of LINZ nz_parcels) which
+# `geometry` column into an `sf` object -- handling zero-length WKB elements
+# (empty/null source geometries -- e.g. 21% of LINZ nz_parcels) which
 # `sf::st_as_sfc.WKB` would otherwise abort on with
 # "cannot read WKB object from zero-length raw vector".
 #
@@ -210,7 +210,7 @@
          call. = FALSE)
   }
 
-  # arrow returns a list-vector of `arrow_binary` raw payloads — convert to
+  # arrow returns a list-vector of `arrow_binary` raw payloads -- convert to
   # a list of raw vectors (some will be length-0 for NULL source geometries).
   raw_list <- lapply(tbl$geometry, as.raw)
   non_empty <- vapply(raw_list, length, integer(1)) > 0L
@@ -238,14 +238,14 @@
   sf::st_sf(attrs, geometry = sfc)
 }
 
-# Sidecar schema version — bump if the JSON structure changes incompatibly.
+# Sidecar schema version -- bump if the JSON structure changes incompatibly.
 .SIDECAR_SCHEMA_VERSION <- 1L
 
 
 #' Download a complete dataset as a single file
 #'
 #' Wraps `GET /v1/bulk/{namespace}/{table}` to download a whole Iceberg table
-#' as a Parquet, gzipped-CSV, or GeoParquet snapshot — no row caps, no
+#' as a Parquet, gzipped-CSV, or GeoParquet snapshot -- no row caps, no
 #' pagination.
 #'
 #' The endpoint requires both `namespace` and `table`. These are resolved
@@ -255,27 +255,27 @@
 #'
 #' @section Freshness:
 #' `freshness = "auto"` (the default) omits the query parameter so the server
-#' redirects to the right level for your plan — Free accounts get the latest
+#' redirects to the right level for your plan -- Free accounts get the latest
 #' monthly snapshot; Pro accounts get the current Iceberg snapshot. Pass
 #' `"monthly"` or `"current"` to override explicitly.
 #'
 #' @section Formats:
 #' \describe{
-#'   \item{`"parquet"`}{Apache Parquet — best for R (via the `arrow` package),
+#'   \item{`"parquet"`}{Apache Parquet -- best for R (via the `arrow` package),
 #'     Polars, DuckDB, Spark.}
-#'   \item{`"csv_gz"`}{Gzipped CSV — readable by `read.csv()`,
+#'   \item{`"csv_gz"`}{Gzipped CSV -- readable by `read.csv()`,
 #'     `readr::read_csv()`, Excel.}
-#'   \item{`"geoparquet"`}{GeoParquet 1.0 — only available on datasets with
+#'   \item{`"geoparquet"`}{GeoParquet 1.0 -- only available on datasets with
 #'     geometry; read with `sfarrow::st_read_parquet()` or `geopandas`.}
 #' }
 #'
 #' @section Error conditions:
 #' \describe{
-#'   \item{HTTP 402}{Stops with `"Bulk upgrade required:"` — `freshness = "current"`
+#'   \item{HTTP 402}{Stops with `"Bulk upgrade required:"` -- `freshness = "current"`
 #'     requires a Pro plan.}
-#'   \item{HTTP 403 (licence)}{Stops with `"Bulk licence restricted:"` — dataset is
+#'   \item{HTTP 403 (licence)}{Stops with `"Bulk licence restricted:"` -- dataset is
 #'     excluded from bulk (e.g. OECD). Use `eolas_get()` instead.}
-#'   \item{HTTP 503}{Stops with `"Bulk not yet available:"` — monthly snapshot
+#'   \item{HTTP 503}{Stops with `"Bulk not yet available:"` -- monthly snapshot
 #'     not yet generated.}
 #' }
 #'
@@ -342,7 +342,7 @@ eolas_download_bulk <- function(name,
   format    <- match.arg(format,    .BULK_VALID_FORMATS)
   freshness <- match.arg(freshness, .BULK_VALID_FRESHNESS)
 
-  # ---- resolve name → namespace + table ------------------------------------
+  # ---- resolve name -> namespace + table ------------------------------------
   meta      <- eolas_info(name, base_url = base_url)
   namespace <- .eolas_dataset_field(meta, "namespace", "")
   table     <- .eolas_dataset_field(meta, "table",
@@ -386,7 +386,7 @@ eolas_download_bulk <- function(name,
     body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
     detail <- body_j$detail %||% paste0(
       "Fresh bulk downloads are a Pro feature. Free accounts get the latest ",
-      "monthly snapshot — see https://eolas.fyi/pricing."
+      "monthly snapshot -- see https://eolas.fyi/pricing."
     )
     cli::cli_abort("Bulk upgrade required: {detail}", call. = FALSE)
   }
@@ -397,7 +397,7 @@ eolas_download_bulk <- function(name,
     if (nzchar(detail) && grepl("licence", detail, ignore.case = TRUE)) {
       cli::cli_abort("Bulk licence restricted: {detail}", call. = FALSE)
     }
-    # Key-auth 403 — delegate to the standard status handler.
+    # Key-auth 403 -- delegate to the standard status handler.
     eolas_check_status(conn_resp)
   }
 
@@ -406,7 +406,7 @@ eolas_download_bulk <- function(name,
     detail <- body_j$detail %||% paste0(
       "Monthly bulk snapshots are still rolling out for this dataset. ",
       "Try again after the 1st of next month, or upgrade to Pro for ",
-      "on-demand current snapshots — see https://eolas.fyi/pricing."
+      "on-demand current snapshots -- see https://eolas.fyi/pricing."
     )
     cli::cli_abort("Bulk not yet available: {detail}", call. = FALSE)
   }
@@ -417,7 +417,7 @@ eolas_download_bulk <- function(name,
 
   # ---- write or return ------------------------------------------------------
   if (is.null(path)) {
-    # Bytes mode — no progress bar (no file label to show).
+    # Bytes mode -- no progress bar (no file label to show).
     raw_bytes <- httr2::resp_body_raw(conn_resp)
     return(raw_bytes)
   }
@@ -438,7 +438,7 @@ eolas_download_bulk <- function(name,
       close(conn_resp)
       n
     } else {
-      # Non-streaming (test mock) path — body already buffered.
+      # Non-streaming (test mock) path -- body already buffered.
       raw_bytes <- httr2::resp_body_raw(conn_resp)
       writeBin(raw_bytes, tmp_path)
       length(raw_bytes)
@@ -624,7 +624,7 @@ eolas_sync_bulk <- function(name,
   # ---- read local sidecar ---------------------------------------------------
   prev <- if (file.exists(sidecar_path)) .read_sidecar(sidecar_path) else NULL
 
-  # ---- resolve name → namespace + table ------------------------------------
+  # ---- resolve name -> namespace + table ------------------------------------
   meta      <- eolas_info(name, base_url = base_url)
   namespace <- .eolas_dataset_field(meta, "namespace", "")
   table     <- .eolas_dataset_field(meta, "table",
@@ -738,7 +738,7 @@ eolas_sync_bulk <- function(name,
   # Atomic rename onto the destination.
   ok <- file.rename(tmp_path, out_path)
   if (!ok) {
-    # file.rename can fail across filesystems — fall back to copy + unlink.
+    # file.rename can fail across filesystems -- fall back to copy + unlink.
     file.copy(tmp_path, out_path, overwrite = TRUE)
     unlink(tmp_path)
   }
@@ -761,7 +761,7 @@ eolas_sync_bulk <- function(name,
 
 
 # -------------------------------------------------------------------------
-# eolas_cache_clear — remove local bulk-cache files without re-downloading
+# eolas_cache_clear -- remove local bulk-cache files without re-downloading
 # -------------------------------------------------------------------------
 
 #' Clear cached state for a dataset (or the whole library)
@@ -802,7 +802,7 @@ eolas_sync_bulk <- function(name,
 #' # Metadata only (e.g. after a warehouse schema change)
 #' eolas_cache_clear("nz_cpi", files = FALSE)
 #'
-#' # Nuclear option — wipe library files + all session metadata
+#' # Nuclear option -- wipe library files + all session metadata
 #' eolas_cache_clear(name = NULL)
 #' }
 #' @seealso [eolas_get()], [eolas_sync_bulk()], [eolas_get_local()], [eolas_library_status()]
@@ -877,7 +877,7 @@ eolas_cache_clear <- function(name = NULL,
 
 
 # -------------------------------------------------------------------------
-# eolas_get_local — notebook-friendly whole-dataset convenience
+# eolas_get_local -- notebook-friendly whole-dataset convenience
 # -------------------------------------------------------------------------
 
 #' Download (or serve from cache) a whole dataset as a local data frame
@@ -887,11 +887,11 @@ eolas_cache_clear <- function(name = NULL,
 #' the bulk file from CDN (milliseconds for monthly snapshots) and writes it to
 #' `~/.cache/eolas/`.  On subsequent calls a lightweight HEAD request checks
 #' whether the local file is still current; if so the cached copy is read
-#' directly — zero network I/O on the data payload.
+#' directly -- zero network I/O on the data payload.
 #'
 #' If you have been calling `eolas_get("nz_parcels")` on a 3-million-row
 #' geospatial dataset and it takes 15+ minutes, use `eolas_get_local()`
-#' instead — it serves a pre-materialised GeoParquet from CDN, not a live
+#' instead -- it serves a pre-materialised GeoParquet from CDN, not a live
 #' Iceberg scan through the row-oriented data endpoint.
 #'
 #' @section Format auto-detection:
@@ -928,10 +928,13 @@ eolas_cache_clear <- function(name = NULL,
 #'   Cannot be combined with `as_arrow = TRUE` (stops with an error).
 #' @param as_arrow When `TRUE`, skip all native geometry materialisation and
 #'   return an `arrow::Table` directly.  Geometry stays as Arrow buffers
-#'   (zero-copy) — suitable for DuckDB / dplyr pipelines that work on a
+#'   (zero-copy) -- suitable for DuckDB / dplyr pipelines that work on a
 #'   sample before converting to sf.  Works for geo and non-geo datasets.
 #'   Cannot be combined with `as_sf = TRUE` (stops with an error).  Requires
 #'   the `arrow` package: `install.packages("arrow")`.
+#' @param meta When `TRUE` (default), attach dataset metadata from
+#'   [eolas_info()] as object attributes. Pass `FALSE` to skip the extra
+#'   round-trip.
 #' @param progress Control progress feedback for the two bulk phases:
 #'   **download** (streaming byte bar while fetching from CDN) and
 #'   **read** (indeterminate spinner while Parquet/GeoParquet is
@@ -952,14 +955,14 @@ eolas_cache_clear <- function(name = NULL,
 #' \dontrun{
 #' eolas_key("your_key")
 #'
-#' # 3-million-row geospatial dataset — first call downloads GeoParquet from CDN;
+#' # 3-million-row geospatial dataset -- first call downloads GeoParquet from CDN;
 #' # subsequent calls return in <1 s via sidecar check.
 #' gdf <- eolas_get_local("nz_parcels")
 #'
 #' # Non-geo tabular dataset
 #' df <- eolas_get_local("nz_cpi")
 #'
-#' # Explicit cache directory (overrides library config — highest priority)
+#' # Explicit cache directory (overrides library config -- highest priority)
 #' df <- eolas_get_local("nz_cpi", cache_dir = "/data/eolas-cache")
 #'
 #' # Force CSV format
@@ -968,7 +971,7 @@ eolas_cache_clear <- function(name = NULL,
 #' # Keep plain data.frame even for geo datasets
 #' df <- eolas_get_local("nz_parcels", as_sf = FALSE)
 #'
-#' # Arrow table — zero-copy, no sf allocation; suitable for DuckDB / dplyr
+#' # Arrow table -- zero-copy, no sf allocation; suitable for DuckDB / dplyr
 #' tbl <- eolas_get_local("nz_parcels", as_arrow = TRUE)
 #' }
 #' @seealso [eolas_sync_bulk()], `eolas_library_set()`, <https://docs.eolas.fyi/bulk-downloads/>
@@ -1000,7 +1003,7 @@ eolas_get_local <- function(name,
       call. = FALSE
     )
   }
-  # Resolve as_sf NULL → default TRUE unless as_arrow overrides.
+  # Resolve as_sf NULL -> default TRUE unless as_arrow overrides.
   as_sf_resolved <- if (!is.null(as_sf)) as_sf else !isTRUE(as_arrow)
 
   # ---- resolve cache_dir ---------------------------------------------------
@@ -1034,7 +1037,7 @@ eolas_get_local <- function(name,
 
   # ---- sync (download if needed, HEAD check if cached) --------------------
   # Bulk-specific stop() errors (Bulk upgrade required / Bulk licence
-  # restricted / Bulk not yet available) propagate unchanged — their messages
+  # restricted / Bulk not yet available) propagate unchanged -- their messages
   # already tell the user what to do.
   eolas_sync_bulk(name, path = file_path, format = fmt,
                   freshness = freshness, progress = progress, force = force,
@@ -1056,11 +1059,11 @@ eolas_get_local <- function(name,
       )
     }
     if (fmt == "csv_gz") {
-      # No native Arrow CSV-GZ reader — read via utils::read.csv then convert.
+      # No native Arrow CSV-GZ reader -- read via utils::read.csv then convert.
       df_tmp <- read_prog(utils::read.csv(gzfile(file_path), stringsAsFactors = FALSE))
       return(arrow::as_arrow_table(df_tmp))
     } else {
-      # parquet or geoparquet — arrow reads both natively without sf overhead.
+      # parquet or geoparquet -- arrow reads both natively without sf overhead.
       return(read_prog(arrow::read_parquet(file_path, as_data_frame = FALSE)))
     }
   }
@@ -1098,7 +1101,7 @@ eolas_get_local <- function(name,
       )
       if (!is.null(result)) return(finish(result))
 
-      # sfarrow failed — likely malformed GeoParquet metadata (e.g. empty
+      # sfarrow failed -- likely malformed GeoParquet metadata (e.g. empty
       # geometry_types array from an older S3 snapshot).  Fall back to the
       # plain .parquet variant which carries a geometry_wkt string column,
       # then promote it to sf via sf::st_as_sf().
@@ -1200,7 +1203,7 @@ eolas_get_local <- function(name,
     if (requireNamespace("sf", quietly = TRUE)) {
       return(finish(read_prog(sf::st_read(file_path, quiet = TRUE))))
     }
-    # Neither sf nor sfarrow available — fall through to plain read below.
+    # Neither sf nor sfarrow available -- fall through to plain read below.
     cli::cli_alert_info(c(
       "{.pkg sf} or {.pkg sfarrow} needed to return a GeoParquet as an {.cls sf} object.",
       "i" = "Install with {.run install.packages(\"sf\")}. Returning plain {.cls data.frame}."

@@ -11,7 +11,7 @@
 # The config file path mirrors the Python client so that a library set from
 # Python (`eolas library set`) is immediately honoured in R and vice versa.
 #
-# Interactive gating uses R's built-in `interactive()` — the standard,
+# Interactive gating uses R's built-in `interactive()` -- the standard,
 # cross-platform, stdlib function used by usethis, askpass, gitcreds,
 # keyring, and every other package that needs to gate on a live user session.
 # It is the direct R equivalent of Python's `sys.stdin.isatty()`.
@@ -124,7 +124,7 @@
 
   choice <- .eolas_cli_select(
     choices = c(
-      "~/eolas-library  (user-wide, persistent — recommended)",
+      "~/eolas-library  (user-wide, persistent -- recommended)",
       "./eolas-library  (this project)",
       "Custom path...",
       "Stay with ~/.cache/eolas  (don't ask again)"
@@ -170,7 +170,7 @@ eolas_resolve_library_dir <- function() {
   }
 
   # Step 4: interactive prompt (once per session, skipped in batch/CI/Rmd/Shiny).
-  # Uses R's stdlib interactive() — the standard cross-platform TTY gate,
+  # Uses R's stdlib interactive() -- the standard cross-platform TTY gate,
   # equivalent to Python's sys.stdin.isatty().  Called via .eolas_is_interactive()
   # so tests can mock it with local_mocked_bindings(.package = "eolas").
   if (.eolas_is_interactive() && !isTRUE(.eolas_lib_runtime$prompt_fired)) {
@@ -180,7 +180,7 @@ eolas_resolve_library_dir <- function() {
     }
   }
 
-  # Step 5: fallback (~/.cache/eolas) — non-interactive OR user cancelled.
+  # Step 5: fallback (~/.cache/eolas) -- non-interactive OR user cancelled.
   .eolas_emit_headless_info_once()
   normalizePath(path.expand("~/.cache/eolas"), mustWork = FALSE)
 }
@@ -199,7 +199,7 @@ eolas_resolve_library_dir <- function() {
 #' The config file is shared with the Python `eolas-data` client, so a path
 #' set from R is immediately honoured in Python and vice versa.
 #'
-#' @param path Character string — the directory path to use as the library.
+#' @param path Character string -- the directory path to use as the library.
 #'   Supports `~`-prefixed paths.
 #' @return The resolved (absolute) path, invisibly.
 #' @export
@@ -253,7 +253,7 @@ eolas_library_status <- function() {
     resolved <- normalizePath(path.expand(cfg), mustWork = FALSE)
     source_key <- "config"
   } else {
-    source_label <- "fallback (transient — configure a library for reproducibility)"
+    source_label <- "fallback (transient -- configure a library for reproducibility)"
     resolved <- normalizePath(path.expand("~/.cache/eolas"), mustWork = FALSE)
     source_key <- "fallback"
   }

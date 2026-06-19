@@ -36,12 +36,7 @@ Install with \code{install.packages("sf")}. Cannot be combined with
 data frame or \code{sf} object (zero-copy, no geometry materialisation).
 Cannot be combined with \code{as_sf = TRUE}.}
 
-\item{progress}{Bulk download/read progress when a whole-dataset pull is
-auto-routed to \code{\link[=eolas_get_local]{eolas_get_local()}}. \code{NULL} (default) shows progress in
-interactive sessions. See \code{\link[=eolas_get]{eolas_get()}}.}
-
-\item{force}{Bypass session metadata and on-disk bulk caches. See
-\code{\link[=eolas_get]{eolas_get()}} and \code{\link[=eolas_cache_clear]{eolas_cache_clear()}}.}
+\item{...}{Forwarded to \code{\link[=eolas_get]{eolas_get()}} (\code{progress}, \code{force}, \code{cache_dir}, etc.).}
 }
 \value{
 A \code{eolas_dataset} data frame, an \code{sf} object when geometry is present

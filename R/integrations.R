@@ -5,11 +5,11 @@
 #'
 #' Supported platforms:
 #' \itemize{
-#'   \item `"meltano"` — `meltano.yml` using `tap-rest-api-msdk`, plus README
+#'   \item `"meltano"` -- `meltano.yml` using `tap-rest-api-msdk`, plus README
 #'         and `.env.example`. `meltano install && meltano run tap-eolas
 #'         target-jsonl` and you're loading.
-#'   \item `"fivetran"` — Connector Builder YAML for paste-into-dashboard import.
-#'   \item `"azure-data-factory"` — linked-service + per-dataset REST datasets
+#'   \item `"fivetran"` -- Connector Builder YAML for paste-into-dashboard import.
+#'   \item `"azure-data-factory"` -- linked-service + per-dataset REST datasets
 #'         + copy pipeline JSON; usable via `az datafactory` CLI or ADF Studio.
 #' }
 #'
@@ -28,11 +28,11 @@
 #' @param base_url Override the API base URL (useful for testing).
 #' @return A list with elements:
 #'   \itemize{
-#'     \item `platform` — the platform name as echoed by the server.
-#'     \item `files` — a named list of `filename = content` (always populated).
-#'     \item `written` — character vector of paths actually written
+#'     \item `platform` -- the platform name as echoed by the server.
+#'     \item `files` -- a named list of `filename = content` (always populated).
+#'     \item `written` -- character vector of paths actually written
 #'           (only present when `output_dir` is set).
-#'     \item `skipped` — character vector of paths skipped because they
+#'     \item `skipped` -- character vector of paths skipped because they
 #'           already existed and `force = FALSE`.
 #'   }
 #' @export

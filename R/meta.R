@@ -1,8 +1,8 @@
-# Dataset metadata — session cache, attr attachment, accessors.
+# Dataset metadata -- session cache, attr attachment, accessors.
 #
 # Table- and column-level metadata come from GET /v1/datasets/{name}. We fetch
 # once per (base_url, name) per R session and attach quietly to returned
-# datasets — never as data columns.
+# datasets -- never as data columns.
 
 .eolas_meta_cache <- new.env(parent = emptyenv())
 
@@ -226,7 +226,7 @@
   sf::st_sf(attrs, geometry = sf::st_geometry(x))
 }
 
-# Whole-dataset pulls on large/geo tables → eolas_get_local() (CDN bulk cache).
+# Whole-dataset pulls on large/geo tables -> eolas_get_local() (CDN bulk cache).
 # Returns the local result, or NULL to fall through to the live API path.
 .eolas_maybe_route_get_local <- function(name, as_sf = NULL, meta = TRUE,
                                          progress = NULL, force = FALSE,
@@ -240,7 +240,7 @@
       !.eolas_live_pull_blocked(meta_info)) {
     return(NULL)
   }
-  # Routing decision is final — never fall back to the live /data path (413).
+  # Routing decision is final -- never fall back to the live /data path (413).
   eolas_get_local(
     name = name, as_sf = as_sf, as_arrow = FALSE, meta = meta,
     progress = progress, force = force, base_url = base_url, ...
@@ -273,7 +273,7 @@
 #' Dataset metadata attached by eolas fetch functions
 #'
 #' Returns the one-row metadata tibble attached by [eolas_get()],
-#' [eolas_get_local()], and source-specific getters — title, description,
+#' [eolas_get_local()], and source-specific getters -- title, description,
 #' licence, refresh cadence, and provenance fields. The full `description`
 #' is available here but is **not** printed by default; call this accessor
 #' when you need the prose.

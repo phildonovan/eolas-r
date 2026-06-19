@@ -34,9 +34,9 @@ The result list from the dispatched sync (see \code{\link[=eolas_sync_changes]{e
 \description{
 Reads \code{cdc_serving_tier} from the dataset metadata and dispatches:
 \itemize{
-\item \code{"changelog"} → \code{\link[=eolas_sync_changes]{eolas_sync_changes()}} — incremental /changes feed, pk-merged into the local file
+\item \code{"changelog"} -> \code{\link[=eolas_sync_changes]{eolas_sync_changes()}} -- incremental /changes feed, pk-merged into the local file
 (first call downloads a baseline; later calls apply only what changed).
-\item anything else (\code{"snapshot"}) → \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}} — full-snapshot download, refreshed when the
+\item anything else (\code{"snapshot"}) -> \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}} -- full-snapshot download, refreshed when the
 server snapshot changes.
 }
 }

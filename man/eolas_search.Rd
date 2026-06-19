@@ -18,7 +18,7 @@ A tibble of matching datasets (same columns as \code{\link[=eolas_list]{eolas_li
 }
 \description{
 Substring search over the dataset catalog. Common analyst tokens are
-expanded — e.g. \code{"HLFS"} also matches labour-force and unemployment
+expanded -- e.g. \code{"HLFS"} also matches labour-force and unemployment
 datasets; \code{"OCR"} matches official cash rate series.
 }
 \examples{
