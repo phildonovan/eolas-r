@@ -9,7 +9,7 @@ jobs:
   version-parity:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Compare tag to DESCRIPTION and eolas-data
         env:
           TAG: ${{ github.ref_name }}
@@ -32,7 +32,7 @@ jobs:
     needs: version-parity
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: release
