@@ -183,7 +183,7 @@ r <- eolas_sync_bulk("nz_cpi", path = "nz_cpi.parquet")
 eolas_download_bulk("treasury_fiscal_spending", path = "t.parquet")
 ```
 
-**Progress bars:** `eolas_download_bulk`, `eolas_sync_bulk`, and `eolas_get_local` all show a `cli` progress bar automatically in interactive R sessions, so 1+ GB files are never silent. Pass `progress = FALSE` to suppress in scripts, or set `EOLAS_NO_PROGRESS=1` in the environment for a batch/CI-wide escape hatch. The bar falls back gracefully to an indeterminate spinner when the server doesn't send a `Content-Length` header.
+**Progress bars:** `eolas_get_local()` shows two phases in interactive sessions — a **download** byte bar while fetching from CDN, then a **read** spinner while Parquet/GeoParquet is loaded into a data frame or `sf` object (the read phase is often the slow part on multi-million-row geo datasets). Control with `progress = TRUE` (both), `FALSE` (neither), `"download"`, or `"read"`. Set `EOLAS_NO_PROGRESS=1` to suppress both in batch scripts. Cached files skip the download bar and print an informative message instead.
 
 Full docs: [docs.eolas.fyi/bulk-downloads/](https://docs.eolas.fyi/bulk-downloads/).
 

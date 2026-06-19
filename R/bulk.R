@@ -21,16 +21,63 @@
 # Tests mock this to FALSE via with_mocked_bindings(.package = "eolas").
 .eolas_use_streaming <- function() TRUE
 
-# Resolve the tri-state `progress` argument to a concrete logical.
-# Priority (highest first):
-#   1. Explicit progress = TRUE / FALSE from the caller.
-#   2. EOLAS_NO_PROGRESS=1 env var — always suppresses.
-#   3. .eolas_is_interactive() auto-detection.
-.eolas_resolve_progress <- function(progress) {
-  if (!is.null(progress) && !is.na(progress)) return(isTRUE(progress))
-  env_val <- trimws(Sys.getenv("EOLAS_NO_PROGRESS", unset = ""))
-  if (env_val %in% c("1", "true", "yes")) return(FALSE)
-  .eolas_is_interactive()
+# Resolve the tri-state `progress` argument to download/read logicals.
+# `progress` may be:
+#   NULL     — auto (both phases follow interactive() / EOLAS_NO_PROGRESS)
+#   TRUE     — both phases on
+#   FALSE    — both phases off
+#   "both"   — both on (alias of TRUE)
+#   "download" — byte stream bar only (network)
+#   "read"   — disk-load spinner only (Parquet/sf materialisation)
+#   "none"   — both off (alias of FALSE)
+.eolas_resolve_progress_phases <- function(progress) {
+  if (identical(progress, FALSE)) {
+    return(list(download = FALSE, read = FALSE))
+  }
+  if (identical(progress, TRUE)) {
+    return(list(download = TRUE, read = TRUE))
+  }
+  if (is.character(progress) && length(progress) == 1L && nzchar(progress)) {
+    p <- tolower(trimws(progress))
+    return(switch(p,
+      both     = list(download = TRUE,  read = TRUE),
+      all      = list(download = TRUE,  read = TRUE),
+      download = list(download = TRUE,  read = FALSE),
+      read     = list(download = FALSE, read = TRUE),
+      none     = list(download = FALSE, read = FALSE),
+      stop(
+        "`progress` must be TRUE, FALSE, NULL, or one of ",
+        '"both", "download", "read", "none".',
+        call. = FALSE
+      )
+    ))
+  }
+  auto <- {
+    env_val <- trimws(Sys.getenv("EOLAS_NO_PROGRESS", unset = ""))
+    if (env_val %in% c("1", "true", "yes")) FALSE else .eolas_is_interactive()
+  }
+  list(download = auto, read = auto)
+}
+
+# Resolve one phase. Used by download (streaming) and read (disk) paths.
+.eolas_resolve_progress <- function(progress, phase = c("download", "read")) {
+  phase <- match.arg(phase)
+  .eolas_resolve_progress_phases(progress)[[phase]]
+}
+
+# Indeterminate cli spinner while materialising a cached bulk file.
+.eolas_with_read_progress <- function(label, show, expr) {
+  if (!isTRUE(show) || !requireNamespace("cli", quietly = TRUE)) {
+    return(force(expr))
+  }
+  cli::cli_progress_bar(
+    name   = label,
+    total  = NA,
+    format = "{cli::pb_spin} Loading {cli::pb_name} from disk\u2026",
+    clear  = FALSE
+  )
+  on.exit(cli::cli_progress_done(), add = TRUE)
+  force(expr)
 }
 
 # Stream the body of a performing httr2 connection-response to a file,
@@ -184,12 +231,12 @@
 #' @param path Where to write the file. `NULL` (default) returns the raw
 #'   bytes as a raw vector. A file path writes the file and returns its
 #'   normalised path invisibly.
-#' @param progress Control the download progress bar. `NULL` (default)
-#'   auto-detects: bar shown in interactive sessions (`interactive()` is
-#'   `TRUE`), hidden in batch/CI/pipes. `TRUE` forces the bar on; `FALSE`
-#'   forces it off. Also suppressed by `EOLAS_NO_PROGRESS=1` in the
-#'   environment. When `path = NULL` (bytes mode) progress is always
-#'   disabled — there is no file label to show.
+#' @param progress Control progress feedback. `NULL` (default) auto-detects both
+#'   phases in interactive sessions. `TRUE`/`FALSE` force both on/off.
+#'   Character selectors: `"download"` (network byte bar only),
+#'   `"read"` (disk-load spinner only), `"both"`/`"none"`.
+#'   Suppressed when `EOLAS_NO_PROGRESS=1`. Bytes mode (`path = NULL`) never
+#'   shows a download bar.
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved for future arguments; currently ignored.
 #' @return Invisibly the normalised path when `path` is set;
@@ -322,12 +369,12 @@ eolas_download_bulk <- function(name,
   out_path <- normalizePath(path, mustWork = FALSE)
   dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
 
-  show_bar    <- .eolas_resolve_progress(progress)
+  show_bar    <- .eolas_resolve_progress(progress, "download")
   total_bytes <- tryCatch(
     as.numeric(httr2::resp_header(conn_resp, "Content-Length")),
     error = \(e) NA_real_
   )
-  label <- basename(out_path)
+  label <- paste0("Downloading ", basename(out_path))
 
   rand_hex <- paste0(sample(c(0:9, letters[1:6]), 8, replace = TRUE), collapse = "")
   tmp_path <- paste0(out_path, ".eolas-tmp-", rand_hex)
@@ -458,11 +505,10 @@ eolas_download_bulk <- function(name,
 #'   Parent directories are created automatically.
 #' @param format `"parquet"` (default), `"csv_gz"`, or `"geoparquet"`.
 #' @param freshness `"auto"` (default), `"monthly"`, or `"current"`.
-#' @param progress Control the download progress bar. `NULL` (default)
-#'   auto-detects via `interactive()`. `TRUE` forces the bar on; `FALSE`
-#'   forces it off. Also suppressed by `EOLAS_NO_PROGRESS=1` in the
-#'   environment. When `status = "unchanged"` no bar is shown regardless
-#'   (no data is transferred).
+#' @param progress Control the download progress bar (`"download"` phase).
+#'   See [eolas_get_local()] for the full `progress` selector vocabulary.
+#'   When `status = "unchanged"` no download bar is shown; an informative
+#'   cached-file message is printed instead.
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved; currently ignored.
 #' @return A named list with the same fields as Python's `SyncResult`:
@@ -547,6 +593,11 @@ eolas_sync_bulk <- function(name,
   if (!is.na(prev_sid) &&
       identical(prev_sid, current_sid) &&
       file.exists(out_path)) {
+    if (requireNamespace("cli", quietly = TRUE)) {
+      cli::cli_inform(c(
+        "i" = "Using cached {.file {basename(out_path)}} (up to date)."
+      ))
+    }
     return(list(
       status               = "unchanged",
       previous_snapshot_id = prev_sid,
@@ -601,12 +652,12 @@ eolas_sync_bulk <- function(name,
     eolas_check_status(conn_resp)
   }
 
-  show_bar    <- .eolas_resolve_progress(progress)
+  show_bar    <- .eolas_resolve_progress(progress, "download")
   total_bytes <- tryCatch(
     as.numeric(httr2::resp_header(conn_resp, "Content-Length")),
     error = \(e) NA_real_
   )
-  label <- basename(out_path)
+  label <- paste0("Downloading ", basename(out_path))
 
   if (use_streaming) {
     bytes_dl <- .eolas_stream_to_file(conn_resp, tmp_path, total_bytes, label, show_bar)
@@ -708,12 +759,14 @@ eolas_sync_bulk <- function(name,
 #'   sample before converting to sf.  Works for geo and non-geo datasets.
 #'   Cannot be combined with `as_sf = TRUE` (stops with an error).  Requires
 #'   the `arrow` package: `install.packages("arrow")`.
-#' @param progress Control the download progress bar. `NULL` (default)
-#'   auto-detects: bar shown in interactive sessions (`interactive()` is
-#'   `TRUE`), hidden in batch/CI/pipes. `TRUE` forces the bar on; `FALSE`
-#'   forces it off. Also suppressed by `EOLAS_NO_PROGRESS=1` in the
-#'   environment. When the dataset is already up to date no bar is shown
-#'   (no data is transferred).
+#' @param progress Control progress feedback for the two bulk phases:
+#'   **download** (streaming byte bar while fetching from CDN) and
+#'   **read** (indeterminate spinner while Parquet/GeoParquet is
+#'   materialised into a data frame or `sf` object). `NULL` (default)
+#'   enables both in interactive sessions. `TRUE`/`FALSE` force both on/off.
+#'   Use `"download"` or `"read"` to show only one phase. Suppressed by
+#'   `EOLAS_NO_PROGRESS=1`. Cached snapshots skip the download bar and print
+#'   an informative message instead.
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved for future arguments; currently ignored.
 #' @return A `data.frame`, `sf` object, or `arrow::Table`, depending on the
@@ -815,6 +868,10 @@ eolas_get_local <- function(name,
   eolas_sync_bulk(name, path = file_path, format = fmt,
                   freshness = freshness, progress = progress, base_url = base_url)
 
+  show_read <- .eolas_resolve_progress(progress, "read")
+  read_lbl  <- basename(file_path)
+  read_prog <- function(expr) .eolas_with_read_progress(read_lbl, show_read, expr)
+
   # ---- read the local file into a data frame --------------------------------
   # as_arrow=TRUE: return arrow::Table directly, skipping all sf/WKB conversion.
   # Works for parquet, geoparquet, and csv_gz.
@@ -828,11 +885,11 @@ eolas_get_local <- function(name,
     }
     if (fmt == "csv_gz") {
       # No native Arrow CSV-GZ reader — read via utils::read.csv then convert.
-      df_tmp <- utils::read.csv(gzfile(file_path), stringsAsFactors = FALSE)
+      df_tmp <- read_prog(utils::read.csv(gzfile(file_path), stringsAsFactors = FALSE))
       return(arrow::as_arrow_table(df_tmp))
     } else {
       # parquet or geoparquet — arrow reads both natively without sf overhead.
-      return(arrow::read_parquet(file_path, as_data_frame = FALSE))
+      return(read_prog(arrow::read_parquet(file_path, as_data_frame = FALSE)))
     }
   }
 
@@ -845,7 +902,7 @@ eolas_get_local <- function(name,
     if (requireNamespace("arrow", quietly = TRUE) &&
         requireNamespace("sf",    quietly = TRUE)) {
       result <- tryCatch(
-        .eolas_arrow_wkb_to_sf(file_path),
+        read_prog(.eolas_arrow_wkb_to_sf(file_path)),
         error = function(e) {
           primary_err <<- e
           NULL
@@ -861,7 +918,7 @@ eolas_get_local <- function(name,
     if (requireNamespace("sfarrow", quietly = TRUE)) {
       sfarrow_err <- primary_err
       result <- tryCatch(
-        .eolas_sfarrow_read_parquet(file_path),
+        read_prog(.eolas_sfarrow_read_parquet(file_path)),
         error = function(e) {
           sfarrow_err <<- e
           NULL
@@ -932,7 +989,7 @@ eolas_get_local <- function(name,
       }
 
       df <- tryCatch(
-        as.data.frame(arrow::read_parquet(parquet_path)),
+        read_prog(as.data.frame(arrow::read_parquet(parquet_path))),
         error = function(e) {
           stop(
             conditionMessage(sfarrow_err),
@@ -969,7 +1026,7 @@ eolas_get_local <- function(name,
       return(finish(sf_obj))
     }
     if (requireNamespace("sf", quietly = TRUE)) {
-      return(finish(sf::st_read(file_path, quiet = TRUE)))
+      return(finish(read_prog(sf::st_read(file_path, quiet = TRUE))))
     }
     # Neither sf nor sfarrow available — fall through to plain read below.
     cli::cli_alert_info(c(
@@ -980,12 +1037,12 @@ eolas_get_local <- function(name,
 
   # Plain read paths.
   if (fmt == "csv_gz") {
-    return(finish(utils::read.csv(gzfile(file_path), stringsAsFactors = FALSE)))
+    return(finish(read_prog(utils::read.csv(gzfile(file_path), stringsAsFactors = FALSE))))
   }
 
   # parquet or geoparquet-without-sf. arrow is a hard dependency (it's on the
   # default bulk/large-dataset read path), but check_installed still gives a
   # clean, install-offering message if the user's arrow build is broken.
   rlang::check_installed("arrow", reason = "to read Parquet data from eolas")
-  finish(as.data.frame(arrow::read_parquet(file_path)))
+  finish(read_prog(as.data.frame(arrow::read_parquet(file_path))))
 }

@@ -89,6 +89,30 @@ test_that("EOLAS_NO_PROGRESS=0 does not suppress when interactive()=TRUE", {
   })
 })
 
+test_that("progress phase selectors split download and read", {
+  phases <- eolas:::.eolas_resolve_progress_phases("download")
+  expect_true(phases$download)
+  expect_false(phases$read)
+
+  phases <- eolas:::.eolas_resolve_progress_phases("read")
+  expect_false(phases$download)
+  expect_true(phases$read)
+
+  phases <- eolas:::.eolas_resolve_progress_phases("both")
+  expect_true(phases$download)
+  expect_true(phases$read)
+
+  phases <- eolas:::.eolas_resolve_progress_phases("none")
+  expect_false(phases$download)
+  expect_false(phases$read)
+})
+
+test_that(".eolas_resolve_progress routes phases correctly", {
+  expect_true(eolas:::.eolas_resolve_progress(TRUE, "download"))
+  expect_true(eolas:::.eolas_resolve_progress("read", "read"))
+  expect_false(eolas:::.eolas_resolve_progress("download", "read"))
+})
+
 # ---------------------------------------------------------------------------
 # eolas_download_bulk: bytes mode (path=NULL) ignores progress arg
 # ---------------------------------------------------------------------------
