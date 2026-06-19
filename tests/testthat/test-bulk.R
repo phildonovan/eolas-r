@@ -20,7 +20,7 @@ test_that("eolas_download_bulk writes file and returns path invisibly when path 
   with_mock_bulk(FAKE_PARQUET, code = {
     result <- withVisible(eolas_download_bulk("nz_cpi", path = dest))
     expect_false(result$visible)
-    expect_equal(result$value, dest)
+    expect_same_path(result$value, dest)
     expect_true(file.exists(dest))
     expect_equal(readBin(dest, "raw", n = length(FAKE_PARQUET)), FAKE_PARQUET)
   })
