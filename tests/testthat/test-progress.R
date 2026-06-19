@@ -89,6 +89,17 @@ test_that("EOLAS_NO_PROGRESS=0 does not suppress when interactive()=TRUE", {
   })
 })
 
+test_that(".eolas_dataset_field avoids tibble $ warning for absent table column", {
+  meta <- tibble::tibble(name = "nz_addresses", namespace = "linz")
+  expect_silent({
+    table <- eolas:::.eolas_dataset_field(
+      meta, "table",
+      eolas:::.eolas_dataset_field(meta, "name", "fallback")
+    )
+  })
+  expect_equal(table, "nz_addresses")
+})
+
 test_that("progress phase selectors split download and read", {
   phases <- eolas:::.eolas_resolve_progress_phases("download")
   expect_true(phases$download)

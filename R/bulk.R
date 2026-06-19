@@ -289,8 +289,9 @@ eolas_download_bulk <- function(name,
 
   # ---- resolve name → namespace + table ------------------------------------
   meta      <- eolas_info(name, base_url = base_url)
-  namespace <- meta$namespace %||% ""
-  table     <- meta$table %||% meta$name %||% name
+  namespace <- .eolas_dataset_field(meta, "namespace", "")
+  table     <- .eolas_dataset_field(meta, "table",
+                                    .eolas_dataset_field(meta, "name", name))
 
   if (!nzchar(namespace)) {
     stop(
@@ -568,8 +569,9 @@ eolas_sync_bulk <- function(name,
 
   # ---- resolve name → namespace + table ------------------------------------
   meta      <- eolas_info(name, base_url = base_url)
-  namespace <- meta$namespace %||% ""
-  table     <- meta$table %||% meta$name %||% name
+  namespace <- .eolas_dataset_field(meta, "namespace", "")
+  table     <- .eolas_dataset_field(meta, "table",
+                                    .eolas_dataset_field(meta, "name", name))
 
   if (!nzchar(namespace)) {
     stop(

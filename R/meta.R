@@ -124,6 +124,16 @@
   tryCatch(.eolas_info_cached(name, base_url = base_url), error = function(e) NULL)
 }
 
+# Safe scalar read from a one-row eolas_info tibble.  Using `$` on a tibble
+# warns when the column is absent (e.g. API has `name` but not `table`).
+.eolas_dataset_field <- function(meta, field, fallback = NULL) {
+  if (is.null(meta) || !is.data.frame(meta) || nrow(meta) < 1L) return(fallback)
+  if (!field %in% names(meta)) return(fallback)
+  val <- meta[[field]][[1]]
+  if (length(val) == 0L || (length(val) == 1L && is.na(val))) return(fallback)
+  val
+}
+
 .eolas_provenance_from_headers <- function(resp) {
   if (is.null(resp)) return(list())
   get_hdr <- function(key) {
