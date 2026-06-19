@@ -19,6 +19,8 @@
 #' @param format Output format. Changelog sync requires `"parquet"`; bulk also accepts `"csv_gz"` /
 #'   `"geoparquet"`.
 #' @param progress Tri-state progress bar control forwarded to the underlying sync.
+#' @param force When `TRUE`, bypass local "unchanged" cache and re-sync from the
+#'   server. On changelog-tier datasets this re-baselines from a full bulk snapshot.
 #' @param base_url API base URL.
 #' @return The result list from the dispatched sync (see [eolas_sync_changes()] / [eolas_sync_bulk()]).
 #' @export
@@ -28,12 +30,14 @@
 #' eolas_sync("nz_building_outlines", path = "buildings.parquet")
 #' }
 eolas_sync <- function(name, path, format = "parquet", progress = NULL,
-                       base_url = EOLAS_BASE_URL) {
+                       force = FALSE, base_url = EOLAS_BASE_URL) {
   meta <- eolas_info(name, base_url = base_url)
   tier <- meta$cdc_serving_tier %||% "snapshot"
   if (identical(tier, "changelog")) {
-    eolas_sync_changes(name, path = path, format = format, progress = progress, base_url = base_url)
+    eolas_sync_changes(name, path = path, format = format, progress = progress,
+                       force = force, base_url = base_url)
   } else {
-    eolas_sync_bulk(name, path = path, format = format, progress = progress, base_url = base_url)
+    eolas_sync_bulk(name, path = path, format = format, progress = progress,
+                    force = force, base_url = base_url)
   }
 }

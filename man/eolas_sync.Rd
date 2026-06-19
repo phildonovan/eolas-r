@@ -9,6 +9,7 @@ eolas_sync(
   path,
   format = "parquet",
   progress = NULL,
+  force = FALSE,
   base_url = EOLAS_BASE_URL
 )
 }
@@ -21,6 +22,9 @@ eolas_sync(
 \code{"geoparquet"}.}
 
 \item{progress}{Tri-state progress bar control forwarded to the underlying sync.}
+
+\item{force}{When \code{TRUE}, bypass local "unchanged" cache and re-sync from the
+server. On changelog-tier datasets this re-baselines from a full bulk snapshot.}
 
 \item{base_url}{API base URL.}
 }

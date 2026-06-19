@@ -12,7 +12,11 @@ eolas_get(
   as_sf = NULL,
   as_arrow = FALSE,
   meta = TRUE,
-  base_url = EOLAS_BASE_URL
+  envelope = FALSE,
+  progress = NULL,
+  force = FALSE,
+  base_url = EOLAS_BASE_URL,
+  ...
 )
 }
 \arguments{
@@ -44,7 +48,24 @@ with an error). Requires the \code{arrow} package: \code{install.packages("arrow
 \code{eolas_meta} / \code{eolas_columns} attributes. Pass \code{FALSE} to skip the extra
 round-trip. See \code{\link[=eolas_meta]{eolas_meta()}} and \code{\link[=eolas_column_label]{eolas_column_label()}}.}
 
+\item{envelope}{When \code{TRUE}, request \code{?envelope=1} (JSON only) and attach
+the \code{data_sources} licence block. Response \verb{X-Eolas-*} headers are merged
+into metadata.}
+
+\item{progress}{Control bulk download/read progress when the request is
+auto-routed to \code{\link[=eolas_get_local]{eolas_get_local()}}. \code{NULL} (default) shows both phases in
+interactive sessions; set \code{EOLAS_NO_PROGRESS=1} to suppress. Ignored on the
+live API path. See \code{\link[=eolas_get_local]{eolas_get_local()}} for \code{"download"} / \code{"read"} selectors.}
+
+\item{force}{When \code{TRUE} and the request is auto-routed to \code{\link[=eolas_get_local]{eolas_get_local()}},
+re-download the bulk file even when the local cache is current. See
+\code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}. Use \code{\link[=eolas_cache_clear]{eolas_cache_clear()}} to delete cache without
+re-downloading.}
+
 \item{base_url}{Override the API base URL (useful for testing).}
+
+\item{...}{Forwarded to \code{\link[=eolas_get_local]{eolas_get_local()}} on auto-route (\code{cache_dir},
+\code{format}, \code{freshness}, etc.).}
 }
 \value{
 A \code{eolas_dataset} tibble with \code{date} coerced to \code{Date}, or an
@@ -56,8 +77,11 @@ The generic workhorse — use \code{\link[=eolas_get_statsnz]{eolas_get_statsnz(
 source-tagged results and a nicer print output.
 }
 \details{
-Hits the live \verb{/v1/datasets/\{name\}/data} endpoint.  Use \code{\link[=eolas_download_bulk]{eolas_download_bulk()}}
-or \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}} for large datasets or whole-dataset pulls.
+Hits the live \verb{/v1/datasets/\{name\}/data} endpoint for slices and smaller
+datasets.  Whole-dataset pulls on large or geospatial tables are
+\strong{auto-routed} to \code{\link[=eolas_get_local]{eolas_get_local()}} (CDN-backed Parquet/GeoParquet) —
+so \code{eolas_get("nz_addresses")} and \code{eolas_get_linz("nz_addresses")} work
+without hitting the API 413 guard.
 }
 \examples{
 \dontrun{

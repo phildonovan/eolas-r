@@ -10,6 +10,7 @@ eolas_sync_bulk(
   format = "parquet",
   freshness = "auto",
   progress = NULL,
+  force = FALSE,
   base_url = EOLAS_BASE_URL,
   ...
 )
@@ -25,11 +26,14 @@ Parent directories are created automatically.}
 
 \item{freshness}{\code{"auto"} (default), \code{"monthly"}, or \code{"current"}.}
 
-\item{progress}{Control the download progress bar. \code{NULL} (default)
-auto-detects via \code{interactive()}. \code{TRUE} forces the bar on; \code{FALSE}
-forces it off. Also suppressed by \code{EOLAS_NO_PROGRESS=1} in the
-environment. When \code{status = "unchanged"} no bar is shown regardless
-(no data is transferred).}
+\item{progress}{Control the download progress bar (\code{"download"} phase).
+See \code{\link[=eolas_get_local]{eolas_get_local()}} for the full \code{progress} selector vocabulary.
+When \code{status = "unchanged"} no download bar is shown; an informative
+cached-file message is printed instead.}
+
+\item{force}{When \code{TRUE}, skip the sidecar "unchanged" fast path and
+re-download the bulk file even when the local snapshot id already matches
+the server (useful after corruption or to verify a fresh CDN copy).}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 

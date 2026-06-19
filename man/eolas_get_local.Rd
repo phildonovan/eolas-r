@@ -13,6 +13,7 @@ eolas_get_local(
   as_arrow = FALSE,
   meta = TRUE,
   progress = NULL,
+  force = FALSE,
   base_url = EOLAS_BASE_URL,
   ...
 )
@@ -48,12 +49,17 @@ sample before converting to sf.  Works for geo and non-geo datasets.
 Cannot be combined with \code{as_sf = TRUE} (stops with an error).  Requires
 the \code{arrow} package: \code{install.packages("arrow")}.}
 
-\item{progress}{Control the download progress bar. \code{NULL} (default)
-auto-detects: bar shown in interactive sessions (\code{interactive()} is
-\code{TRUE}), hidden in batch/CI/pipes. \code{TRUE} forces the bar on; \code{FALSE}
-forces it off. Also suppressed by \code{EOLAS_NO_PROGRESS=1} in the
-environment. When the dataset is already up to date no bar is shown
-(no data is transferred).}
+\item{progress}{Control progress feedback for the two bulk phases:
+\strong{download} (streaming byte bar while fetching from CDN) and
+\strong{read} (indeterminate spinner while Parquet/GeoParquet is
+materialised into a data frame or \code{sf} object). \code{NULL} (default)
+enables both in interactive sessions. \code{TRUE}/\code{FALSE} force both on/off.
+Use \code{"download"} or \code{"read"} to show only one phase. Suppressed by
+\code{EOLAS_NO_PROGRESS=1}. Cached snapshots skip the download bar and print
+an informative message instead.}
+
+\item{force}{When \code{TRUE}, re-download the bulk file even when the local
+sidecar says the snapshot is current. See \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}.}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 

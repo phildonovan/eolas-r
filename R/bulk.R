@@ -133,6 +133,34 @@
   geoparquet = ".geo.parquet"
 )
 
+# Infer parquet vs geoparquet from dataset metadata (shared by get_local / cache_clear).
+.eolas_detect_bulk_format <- function(meta, name, base_url) {
+  if (is.null(meta)) meta <- eolas_info(name, base_url = base_url)
+  gt        <- if ("geometry_type" %in% names(meta)) meta$geometry_type[[1]] else NULL
+  wkt       <- if ("geometry_wkt" %in% names(meta)) meta$geometry_wkt[[1]] else NULL
+  gt_truthy <- !is.null(gt)  && nzchar(gt)  && gt  != "none"
+  wkt_truthy <- !is.null(wkt) && nzchar(wkt) && wkt != "none"
+  has_geom  <- if ("has_geometry" %in% names(meta)) isTRUE(meta$has_geometry[[1]]) else FALSE
+  if (gt_truthy || wkt_truthy || has_geom) "geoparquet" else "parquet"
+}
+
+# Local bulk-cache paths for one dataset under a library directory.
+.eolas_bulk_cache_paths <- function(name, cache_dir, format = NULL,
+                                    base_url = EOLAS_BASE_URL) {
+  if (is.null(format)) {
+    fmt <- .eolas_detect_bulk_format(NULL, name, base_url)
+  } else {
+    fmt <- match.arg(format, .BULK_VALID_FORMATS)
+  }
+  ext <- .BULK_EXTENSIONS[[fmt]]
+  data_path <- file.path(cache_dir, paste0(name, ext))
+  list(
+    format       = fmt,
+    data_path    = data_path,
+    sidecar_path = paste0(data_path, ".eolas-meta.json")
+  )
+}
+
 # Thin wrapper around sfarrow::st_read_parquet() — exists solely so tests can
 # mock it via local_mocked_bindings(.env = getNamespace("eolas")) without
 # having to patch the sfarrow namespace directly.
@@ -512,6 +540,9 @@ eolas_download_bulk <- function(name,
 #'   See [eolas_get_local()] for the full `progress` selector vocabulary.
 #'   When `status = "unchanged"` no download bar is shown; an informative
 #'   cached-file message is printed instead.
+#' @param force When `TRUE`, skip the sidecar "unchanged" fast path and
+#'   re-download the bulk file even when the local snapshot id already matches
+#'   the server (useful after corruption or to verify a fresh CDN copy).
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved; currently ignored.
 #' @return A named list with the same fields as Python's `SyncResult`:
@@ -550,6 +581,7 @@ eolas_sync_bulk <- function(name,
                             format    = "parquet",
                             freshness = "auto",
                             progress  = NULL,
+                            force     = FALSE,
                             base_url  = EOLAS_BASE_URL,
                             ...) {
 
@@ -594,7 +626,8 @@ eolas_sync_bulk <- function(name,
 
   # ---- no-op fast path ------------------------------------------------------
   prev_sid <- if (!is.null(prev)) prev$snapshot_id %||% NA_character_ else NA_character_
-  if (!is.na(prev_sid) &&
+  if (!isTRUE(force) &&
+      !is.na(prev_sid) &&
       identical(prev_sid, current_sid) &&
       file.exists(out_path)) {
     if (requireNamespace("cli", quietly = TRUE)) {
@@ -708,6 +741,81 @@ eolas_sync_bulk <- function(name,
 
 
 # -------------------------------------------------------------------------
+# eolas_cache_clear — remove local bulk-cache files without re-downloading
+# -------------------------------------------------------------------------
+
+#' Clear locally cached bulk files for a dataset
+#'
+#' Deletes the cached data file and its `.eolas-meta.json` sidecar from the
+#' eolas library directory. Does **not** contact the API — use
+#' [eolas_get_local()] or [eolas_sync_bulk()] with `force = TRUE` to
+#' re-download immediately after clearing.
+#'
+#' When `format = NULL`, removes files for **all** bulk extensions
+#' (`.parquet`, `.csv.gz`, `.geo.parquet`) that exist for `name`, so prior
+#' `format = "csv_gz"` caches are cleaned up too.
+#'
+#' @param name Dataset identifier, e.g. `"nz_parcels"`.
+#' @param cache_dir Library directory. `NULL` (default) uses the same
+#'   precedence chain as [eolas_get_local()] (`EOLAS_LIBRARY`, config, fallback).
+#' @param format `"parquet"`, `"csv_gz"`, or `"geoparquet"`. `NULL` (default)
+#'   deletes any on-disk bulk variants for `name`.
+#' @param base_url Override the API base URL (only used when `format` is set and
+#'   metadata is needed — not used for the `NULL` sweep).
+#' @return Invisibly a character vector of deleted file paths (length 0 when
+#'   nothing was cached).
+#' @export
+#' @examples
+#' \dontrun{
+#' # Free disk space without re-downloading
+#' eolas_cache_clear("nz_parcels")
+#'
+#' # Clear then force a fresh pull
+#' eolas_cache_clear("nz_parcels")
+#' gdf <- eolas_get_local("nz_parcels", force = TRUE)
+#' }
+#' @seealso [eolas_sync_bulk()], [eolas_get_local()], [eolas_library_status()]
+eolas_cache_clear <- function(name,
+                              cache_dir = NULL,
+                              format    = NULL,
+                              base_url  = EOLAS_BASE_URL) {
+  if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
+    stop("`name` must be a non-empty string.", call. = FALSE)
+  }
+  if (is.null(cache_dir)) {
+    cache_dir_expanded <- eolas_resolve_library_dir()
+  } else {
+    cache_dir_expanded <- path.expand(as.character(cache_dir))
+  }
+  cache_dir_abs <- tools::file_path_as_absolute(cache_dir_expanded)
+
+  paths <- if (is.null(format)) {
+    unlist(lapply(.BULK_EXTENSIONS, function(ext) {
+      p <- file.path(cache_dir_abs, paste0(name, ext))
+      c(p, paste0(p, ".eolas-meta.json"))
+    }), use.names = FALSE)
+  } else {
+    p <- .eolas_bulk_cache_paths(name, cache_dir_abs, format = format, base_url = base_url)
+    c(p$data_path, p$sidecar_path)
+  }
+
+  deleted <- character(0)
+  for (p in unique(paths)) {
+    if (file.exists(p)) {
+      unlink(p)
+      deleted <- c(deleted, normalizePath(p, mustWork = FALSE))
+    }
+  }
+  if (length(deleted) && requireNamespace("cli", quietly = TRUE)) {
+    cli::cli_inform(c(
+      "i" = "Cleared {length(deleted)} cached file{?s} for {.field {name}}."
+    ))
+  }
+  invisible(deleted)
+}
+
+
+# -------------------------------------------------------------------------
 # eolas_get_local — notebook-friendly whole-dataset convenience
 # -------------------------------------------------------------------------
 
@@ -771,6 +879,8 @@ eolas_sync_bulk <- function(name,
 #'   Use `"download"` or `"read"` to show only one phase. Suppressed by
 #'   `EOLAS_NO_PROGRESS=1`. Cached snapshots skip the download bar and print
 #'   an informative message instead.
+#' @param force When `TRUE`, re-download the bulk file even when the local
+#'   sidecar says the snapshot is current. See [eolas_sync_bulk()].
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved for future arguments; currently ignored.
 #' @return A `data.frame`, `sf` object, or `arrow::Table`, depending on the
@@ -808,6 +918,7 @@ eolas_get_local <- function(name,
                              as_arrow  = FALSE,
                              meta      = TRUE,
                              progress  = NULL,
+                             force     = FALSE,
                              base_url  = EOLAS_BASE_URL,
                              ...) {
 
@@ -849,14 +960,7 @@ eolas_get_local <- function(name,
 
   # ---- auto-detect format if not specified ----------------------------------
   if (is.null(format)) {
-    meta       <- meta_info %||% eolas_info(name, base_url = base_url)
-    gt         <- if ("geometry_type" %in% names(meta)) meta$geometry_type[[1]] else NULL
-    wkt        <- if ("geometry_wkt" %in% names(meta)) meta$geometry_wkt[[1]] else NULL
-    gt_truthy  <- !is.null(gt)  && nzchar(gt)  && gt  != "none"
-    wkt_truthy <- !is.null(wkt) && nzchar(wkt) && wkt != "none"
-    has_geom   <- if ("has_geometry" %in% names(meta)) isTRUE(meta$has_geometry[[1]]) else FALSE
-    is_geo     <- gt_truthy || wkt_truthy || has_geom
-    fmt        <- if (is_geo) "geoparquet" else "parquet"
+    fmt <- .eolas_detect_bulk_format(meta_info, name, base_url)
   } else {
     fmt <- match.arg(format, .BULK_VALID_FORMATS)
   }
@@ -870,7 +974,8 @@ eolas_get_local <- function(name,
   # restricted / Bulk not yet available) propagate unchanged — their messages
   # already tell the user what to do.
   eolas_sync_bulk(name, path = file_path, format = fmt,
-                  freshness = freshness, progress = progress, base_url = base_url)
+                  freshness = freshness, progress = progress, force = force,
+                  base_url = base_url)
 
   show_read <- .eolas_resolve_progress(progress, "read")
   read_lbl  <- basename(file_path)

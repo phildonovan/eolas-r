@@ -375,6 +375,25 @@ test_that("eolas_get auto-routes whole-dataset geo pulls to eolas_get_local", {
   expect_s3_class(result, "eolas_dataset")
 })
 
+test_that("eolas_get forwards force to auto-routed eolas_get_local", {
+  force_seen <- NULL
+
+  set_test_key()
+  local_mocked_bindings(
+    .eolas_info_cached = function(name, base_url = EOLAS_BASE_URL) {
+      parse_geo_meta()
+    },
+    eolas_get_local = function(name, force = FALSE, ...) {
+      force_seen <<- force
+      eolas:::new_eolas_dataset(data.frame(id = 1L), name = name)
+    },
+    .package = "eolas"
+  )
+
+  eolas_get("nz_parcels", force = TRUE)
+  expect_true(isTRUE(force_seen))
+})
+
 test_that("eolas_get_linz forwards progress to auto-routed eolas_get_local", {
   progress_seen <- NULL
   addresses_meta <- jsonlite::toJSON(

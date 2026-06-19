@@ -134,12 +134,14 @@
 #'   `paste0(path, ".eolas-meta.json")`.
 #' @param format Only `"parquet"` is supported for changelog sync.
 #' @param progress Forwarded to [eolas_sync_bulk()] for the baseline download bar.
+#' @param force When `TRUE`, discard the incremental watermark and re-baseline from
+#'   a full bulk snapshot.
 #' @param base_url API base URL.
 #' @return A list with `status`, `sync_mode = "changelog"`, `previous_seq`, `current_seq`,
 #'   `ops_applied`, `path`, `current_snapshot_id`.
 #' @export
 eolas_sync_changes <- function(name, path, format = "parquet", progress = NULL,
-                               base_url = EOLAS_BASE_URL) {
+                               force = FALSE, base_url = EOLAS_BASE_URL) {
   fmt <- tolower(format)
   if (fmt != "parquet") {
     cli::cli_abort(c("{.fn eolas_sync_changes} only supports {.val parquet}.",
@@ -164,7 +166,7 @@ eolas_sync_changes <- function(name, path, format = "parquet", progress = NULL,
   do_baseline <- function(reason) {
     cli::cli_alert_info("{.field {name}}: {reason} — baselining from a full bulk snapshot.")
     bulk <- eolas_sync_bulk(name, path = out_path, format = fmt, freshness = "current",
-                            progress = progress, base_url = base_url)
+                            progress = progress, force = force, base_url = base_url)
     high <- .eolas_fetch_seq_high(name, base_url = base_url)
     .eolas_write_changelog_sidecar(sidecar_path, name, fmt, pk_columns, current_state_filter,
                                    bulk$current_snapshot_id, high)
@@ -172,6 +174,7 @@ eolas_sync_changes <- function(name, path, format = "parquet", progress = NULL,
          ops_applied = 0L, path = out_path, current_snapshot_id = bulk$current_snapshot_id)
   }
 
+  if (isTRUE(force)) return(do_baseline("force refresh"))
   if (needs_baseline) return(do_baseline("cold start"))
 
   prev_watermark <- as.numeric(sidecar$watermark_seq %||% 0)

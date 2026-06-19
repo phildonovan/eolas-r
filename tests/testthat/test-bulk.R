@@ -173,6 +173,50 @@ test_that("eolas_sync_bulk unchanged: no file write, status=unchanged, bytes_dow
   })
 })
 
+test_that("eolas_sync_bulk force=TRUE re-downloads when snapshot unchanged", {
+  tmp  <- withr::local_tempdir()
+  dest <- file.path(tmp, "nz_cpi.parquet")
+  writeBin(FAKE_PARQUET, dest)
+  write_test_sidecar(dest, SNAPSHOT_V1)
+
+  with_mock_sync(SNAPSHOT_V1, bulk_body = FAKE_PARQUET_V2, code = {
+    result <- eolas_sync_bulk("nz_cpi", path = dest, force = TRUE)
+    expect_equal(result$status, "updated")
+    expect_equal(result$previous_snapshot_id, SNAPSHOT_V1)
+    expect_equal(result$current_snapshot_id, SNAPSHOT_V1)
+    expect_gt(result$bytes_downloaded, 0L)
+    expect_equal(readBin(dest, "raw", n = length(FAKE_PARQUET_V2)), FAKE_PARQUET_V2)
+  })
+})
+
+test_that("eolas_cache_clear removes cached bulk files and sidecars", {
+  tmp <- withr::local_tempdir()
+  parquet <- file.path(tmp, "nz_parcels.parquet")
+  geo     <- file.path(tmp, "nz_parcels.geo.parquet")
+  writeBin(charToRaw("p"), parquet)
+  writeBin(charToRaw("g"), geo)
+  writeLines("{}", paste0(parquet, ".eolas-meta.json"))
+  writeLines("{}", paste0(geo, ".eolas-meta.json"))
+
+  deleted <- eolas_cache_clear("nz_parcels", cache_dir = tmp)
+  expect_length(deleted, 4L)
+  expect_false(any(file.exists(c(parquet, geo, paste0(parquet, ".eolas-meta.json"),
+                                 paste0(geo, ".eolas-meta.json")))))
+})
+
+test_that("eolas_cache_clear with format deletes only that variant", {
+  tmp <- withr::local_tempdir()
+  parquet <- file.path(tmp, "nz_cpi.parquet")
+  csv     <- file.path(tmp, "nz_cpi.csv.gz")
+  writeBin(charToRaw("p"), parquet)
+  writeBin(charToRaw("c"), csv)
+
+  deleted <- eolas_cache_clear("nz_cpi", cache_dir = tmp, format = "parquet")
+  expect_length(deleted, 1L)
+  expect_false(file.exists(parquet))
+  expect_true(file.exists(csv))
+})
+
 test_that("eolas_sync_bulk updated: file replaced, sidecar updated, status=updated", {
   tmp  <- withr::local_tempdir()
   dest <- file.path(tmp, "nz_cpi.parquet")

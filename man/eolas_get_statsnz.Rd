@@ -35,6 +35,13 @@ Install with \code{install.packages("sf")}. Cannot be combined with
 \item{as_arrow}{When \code{TRUE}, return an \code{arrow::Table} instead of a
 data frame or \code{sf} object (zero-copy, no geometry materialisation).
 Cannot be combined with \code{as_sf = TRUE}.}
+
+\item{progress}{Bulk download/read progress when a whole-dataset pull is
+auto-routed to \code{\link[=eolas_get_local]{eolas_get_local()}}. \code{NULL} (default) shows progress in
+interactive sessions. See \code{\link[=eolas_get]{eolas_get()}}.}
+
+\item{force}{Re-download the bulk cache even when locally current. See
+\code{\link[=eolas_get]{eolas_get()}} and \code{\link[=eolas_cache_clear]{eolas_cache_clear()}}.}
 }
 \value{
 A \code{eolas_dataset} data frame, an \code{sf} object when geometry is present

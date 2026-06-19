@@ -26,12 +26,12 @@ eolas_download_bulk(
 bytes as a raw vector. A file path writes the file and returns its
 normalised path invisibly.}
 
-\item{progress}{Control the download progress bar. \code{NULL} (default)
-auto-detects: bar shown in interactive sessions (\code{interactive()} is
-\code{TRUE}), hidden in batch/CI/pipes. \code{TRUE} forces the bar on; \code{FALSE}
-forces it off. Also suppressed by \code{EOLAS_NO_PROGRESS=1} in the
-environment. When \code{path = NULL} (bytes mode) progress is always
-disabled — there is no file label to show.}
+\item{progress}{Control progress feedback. \code{NULL} (default) auto-detects both
+phases in interactive sessions. \code{TRUE}/\code{FALSE} force both on/off.
+Character selectors: \code{"download"} (network byte bar only),
+\code{"read"} (disk-load spinner only), \code{"both"}/\code{"none"}.
+Suppressed when \code{EOLAS_NO_PROGRESS=1}. Bytes mode (\code{path = NULL}) never
+shows a download bar.}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 

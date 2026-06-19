@@ -207,8 +207,8 @@
 # Whole-dataset pulls on large/geo tables → eolas_get_local() (CDN bulk cache).
 # Returns the local result, or NULL to fall through to the live API path.
 .eolas_maybe_route_get_local <- function(name, as_sf = NULL, meta = TRUE,
-                                         progress = NULL, base_url = EOLAS_BASE_URL,
-                                         ...) {
+                                         progress = NULL, force = FALSE,
+                                         base_url = EOLAS_BASE_URL, ...) {
   meta_info <- tryCatch(
     if (isTRUE(meta)) .eolas_info_cached(name, base_url = base_url) else NULL,
     error = function(e) NULL
@@ -221,7 +221,7 @@
   # Routing decision is final — never fall back to the live /data path (413).
   eolas_get_local(
     name = name, as_sf = as_sf, as_arrow = FALSE, meta = meta,
-    progress = progress, base_url = base_url, ...
+    progress = progress, force = force, base_url = base_url, ...
   )
 }
 

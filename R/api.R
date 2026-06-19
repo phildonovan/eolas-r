@@ -227,6 +227,10 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #'   auto-routed to [eolas_get_local()]. `NULL` (default) shows both phases in
 #'   interactive sessions; set `EOLAS_NO_PROGRESS=1` to suppress. Ignored on the
 #'   live API path. See [eolas_get_local()] for `"download"` / `"read"` selectors.
+#' @param force When `TRUE` and the request is auto-routed to [eolas_get_local()],
+#'   re-download the bulk file even when the local cache is current. See
+#'   [eolas_sync_bulk()]. Use [eolas_cache_clear()] to delete cache without
+#'   re-downloading.
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Forwarded to [eolas_get_local()] on auto-route (`cache_dir`,
 #'   `format`, `freshness`, etc.).
@@ -243,7 +247,7 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' }
 eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
                    as_sf = NULL, as_arrow = FALSE, meta = TRUE,
-                   envelope = FALSE, progress = NULL,
+                   envelope = FALSE, progress = NULL, force = FALSE,
                    base_url = EOLAS_BASE_URL, ...) {
 
   # ---- as_arrow / as_sf conflict guard ----------------------------------------
@@ -269,7 +273,7 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
       !isTRUE(envelope) && !isTRUE(as_arrow)) {
     routed <- .eolas_maybe_route_get_local(
       name = name, as_sf = as_sf, meta = meta, progress = progress,
-      base_url = base_url, ...
+      force = force, base_url = base_url, ...
     )
     if (!is.null(routed)) return(routed)
   }

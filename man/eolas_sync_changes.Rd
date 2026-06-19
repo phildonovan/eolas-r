@@ -9,6 +9,7 @@ eolas_sync_changes(
   path,
   format = "parquet",
   progress = NULL,
+  force = FALSE,
   base_url = EOLAS_BASE_URL
 )
 }
@@ -21,6 +22,9 @@ eolas_sync_changes(
 \item{format}{Only \code{"parquet"} is supported for changelog sync.}
 
 \item{progress}{Forwarded to \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}} for the baseline download bar.}
+
+\item{force}{When \code{TRUE}, discard the incremental watermark and re-baseline from
+a full bulk snapshot.}
 
 \item{base_url}{API base URL.}
 }
