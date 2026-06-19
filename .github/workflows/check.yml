@@ -31,6 +31,7 @@ jobs:
       - uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-manual", "--as-cran")'
+          error-on: '"error"'
           upload-snapshots: true
 
   check-geo:
@@ -50,6 +51,7 @@ jobs:
       - name: Geo routing + bulk tests
         run: |
           Rscript -e '
+            library(eolas)
             testthat::test_file("tests/testthat/test-api.R", stop_on_failure = TRUE)
             testthat::test_file("tests/testthat/test-bulk.R", stop_on_failure = TRUE)
             testthat::test_file("tests/testthat/test-progress.R", stop_on_failure = TRUE)
