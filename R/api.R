@@ -317,13 +317,18 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
     return(df)
   }
   # Preserve eolas_dataset-style metadata so attrs survive the conversion
+  was_eolas  <- inherits(df, "eolas_dataset")
   vs_name    <- attr(df, "eolas_name")
   vs_source  <- attr(df, "eolas_source")
   vs_meta    <- attr(df, "eolas_meta")
   vs_columns <- attr(df, "eolas_columns")
-  # Convert to plain data.frame first — sf::st_as_sf doesn't reliably drop the
-  # WKT column when called on a class-extended data frame (e.g. eolas_dataset).
-  plain <- as.data.frame(df)
+  # Tibble backing — sf::st_as_sf doesn't reliably drop the WKT column when
+  # called on a class-extended data frame (e.g. eolas_dataset).
+  plain <- if (inherits(df, "tbl_df")) {
+    tibble::as_tibble(df)
+  } else {
+    tibble::as_tibble(as.data.frame(df))
+  }
 
   # Some NZ geospatial datasets legitimately contain rows with no geometry —
   # e.g. non-digitised "oceanic" / "area outside region" meshblocks. A single
@@ -390,10 +395,15 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
 
   plain[["geometry_wkt"]] <- NULL
   # Geometry column is named "geometry" for consistency with the sf ecosystem.
-  result <- sf::st_sf(plain, geometry = sf::st_sfc(geoms, crs = 4326))
+  result <- .eolas_sf_as_tibble(
+    sf::st_sf(plain, geometry = sf::st_sfc(geoms, crs = 4326))
+  )
   if (!is.null(vs_name))    attr(result, "eolas_name")    <- vs_name
   if (!is.null(vs_source))  attr(result, "eolas_source")  <- vs_source
   if (!is.null(vs_meta))    attr(result, "eolas_meta")    <- vs_meta
   if (!is.null(vs_columns)) attr(result, "eolas_columns") <- vs_columns
+  if (was_eolas) {
+    result <- structure(result, class = c("eolas_dataset", class(result)))
+  }
   result
 }

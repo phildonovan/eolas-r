@@ -179,7 +179,9 @@
   sfc <- sf::st_sfc(geom_list, crs = 4326)
 
   # Drop the binary column from the attribute table, attach the decoded sfc
-  attrs <- as.data.frame(tbl[, setdiff(names(tbl), "geometry"), drop = FALSE])
+  attrs <- tibble::as_tibble(
+    as.data.frame(tbl[, setdiff(names(tbl), "geometry"), drop = FALSE])
+  )
   sf::st_sf(attrs, geometry = sfc)
 }
 

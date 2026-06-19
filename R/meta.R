@@ -171,10 +171,19 @@
   x
 }
 
+# Promote an sf object's attribute table to tbl_df without touching geometry.
+.eolas_sf_as_tibble <- function(x) {
+  if (!inherits(x, "sf") || inherits(x, "tbl_df")) return(x)
+  attrs <- tibble::as_tibble(sf::st_drop_geometry(x))
+  sf::st_sf(attrs, geometry = sf::st_geometry(x))
+}
+
 .eolas_finalize_dataset <- function(x, name, meta_info = NULL, source = NULL) {
   if (inherits(x, "arrow_tabular")) return(x)
   if (inherits(x, "sf")) {
-    return(.eolas_attach_dataset_meta(x, name = name, source = source, meta_info = meta_info))
+    x <- .eolas_sf_as_tibble(x)
+    x <- .eolas_attach_dataset_meta(x, name = name, source = source, meta_info = meta_info)
+    return(structure(x, class = c("eolas_dataset", class(x))))
   }
   new_eolas_dataset(x, name = name, source = source, meta_info = meta_info)
 }

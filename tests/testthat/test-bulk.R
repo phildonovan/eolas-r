@@ -228,6 +228,7 @@ test_that(".eolas_arrow_wkb_to_sf handles empty WKB rows without aborting", {
   result <- eolas:::.eolas_arrow_wkb_to_sf(tmp)
 
   expect_s3_class(result, "sf")
+  expect_s3_class(result, "tbl_df")
   expect_equal(nrow(result), 4L)
   empty_rows <- sf::st_is_empty(result$geometry)
   expect_equal(empty_rows, c(FALSE, TRUE, FALSE, TRUE))

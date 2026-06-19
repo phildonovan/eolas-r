@@ -26,7 +26,8 @@ test_that("eolas_get_local returns data.frame for non-geo dataset (first call)",
                               cache_dir = tmp)
   })
 
-  expect_s3_class(result, "data.frame")
+  expect_s3_class(result, "tbl_df")
+  expect_s3_class(result, "eolas_dataset")
   expect_true("date" %in% names(result))
   expect_true("value" %in% names(result))
   expect_equal(nrow(result), 1L)
@@ -66,7 +67,7 @@ test_that("eolas_get_local returns data.frame from cached file on subsequent cal
 
   result <- eolas_get_local("nz_cpi", format = "csv_gz", cache_dir = tmp)
 
-  expect_s3_class(result, "data.frame")
+  expect_s3_class(result, "tbl_df")
   expect_equal(nrow(result), 1L)
 })
 
@@ -348,6 +349,8 @@ test_that("eolas_get_local falls back to WKT parquet when sfarrow throws on malf
         regexp = "falling back to WKT string path"
       )
       expect_s3_class(result, "sf")
+      expect_s3_class(result, "tbl_df")
+      expect_s3_class(result, "eolas_dataset")
       expect_equal(nrow(result), 1L)
       expect_false("geometry_wkt" %in% names(result))
       expect_equal(attr(result, "sf_column"), "geometry")
@@ -522,6 +525,8 @@ test_that("malformed GeoParquet (empty geometry_types) triggers WKT fallback and
   )
 
   expect_s3_class(result, "sf")
+  expect_s3_class(result, "tbl_df")
+  expect_s3_class(result, "eolas_dataset")
   expect_equal(nrow(result), 1L)
   expect_false("geometry_wkt" %in% names(result))
 })

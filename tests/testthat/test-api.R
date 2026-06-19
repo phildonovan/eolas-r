@@ -318,6 +318,8 @@ test_that("eolas_get auto-converts to sf when geometry_wkt + sf available", {
   with_mock_eolas(GEO_DATA_BODY, code = {
     df <- eolas_get("nz_addresses")
     expect_s3_class(df, "sf")
+    expect_s3_class(df, "tbl_df")
+    expect_s3_class(df, "eolas_dataset")
     expect_true("geometry" %in% names(df))
     expect_false("geometry_wkt" %in% names(df))
     expect_equal(sf::st_crs(df)$epsg, 4326)
