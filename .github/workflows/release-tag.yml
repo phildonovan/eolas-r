@@ -1,0 +1,62 @@
+name: Release tag gate
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  version-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare tag to DESCRIPTION and eolas-data
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          expected="${TAG#v}"
+          r_ver=$(awk -F': ' '/^Version:/{print $2; exit}' DESCRIPTION)
+          py_ver=$(curl -fsSL "https://raw.githubusercontent.com/phildonovan/eolas-data/master/pyproject.toml" \
+            | grep -E '^version = ' | sed 's/version = "\(.*\)"/\1/')
+          echo "Tag: $expected | R DESCRIPTION: $r_ver | Python (master): $py_ver"
+          if [ "$expected" != "$r_ver" ]; then
+            echo "::error::Tag $TAG does not match DESCRIPTION version $r_ver"
+            exit 1
+          fi
+          if [ "$expected" != "$py_ver" ]; then
+            echo "::warning::Python package version ($py_ver) differs from tag ($expected)"
+          fi
+
+  smoke:
+    needs: version-parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          needs: check
+      - name: Install tagged package
+        run: R CMD INSTALL .
+      - name: Live smoke (pre-release gate)
+        env:
+          EOLAS_API_KEY: ${{ secrets.EOLAS_API_KEY }}
+        run: |
+          if [ -z "$EOLAS_API_KEY" ]; then
+            echo "::warning::EOLAS_API_KEY not set — skipping tag smoke"
+            exit 0
+          fi
+          Rscript tests/smoke-live.R
+
+  universe:
+    needs: smoke
+    # Secrets cannot be referenced in job-level `if` — gate with a repo variable.
+    if: vars.ENABLE_R_UNIVERSE == 'true'
+    uses: r-universe-org/actions/build-and-deploy@v1
+    with:
+      package: eolas
+    secrets:
+      R_UNIVERSE_SECRET: ${{ secrets.R_UNIVERSE_SECRET }}

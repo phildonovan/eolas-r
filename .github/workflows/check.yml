@@ -6,7 +6,18 @@ on:
   pull_request:
 
 jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+      - name: Client contract matrix
+        run: Rscript scripts/check_client_contract.R
+
   check:
+    needs: contract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +33,46 @@ jobs:
           args: 'c("--no-manual", "--as-cran")'
           upload-snapshots: true
 
+  check-geo:
+    needs: contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::sf, any::testthat
+          needs: check
+      - name: Install package
+        run: R CMD INSTALL .
+      - name: Geo routing + bulk tests
+        run: |
+          Rscript -e '
+            testthat::test_file("tests/testthat/test-api.R", stop_on_failure = TRUE)
+            testthat::test_file("tests/testthat/test-bulk.R", stop_on_failure = TRUE)
+            testthat::test_file("tests/testthat/test-progress.R", stop_on_failure = TRUE)
+          '
+
+  install-check:
+    needs: contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          needs: check
+      - name: Install package (as users would)
+        run: R CMD INSTALL .
+      - name: Test installed package
+        run: Rscript -e 'testthat::test_local(installation = TRUE, stop_on_failure = TRUE)'
+
   coverage:
+    needs: contract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,3 +85,7 @@ jobs:
           needs: coverage
       - name: Test coverage
         run: Rscript -e 'covr::codecov(quiet = FALSE)'
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: false

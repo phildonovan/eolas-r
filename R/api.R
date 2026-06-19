@@ -143,6 +143,25 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
   ))
 }
 
+# JSON rows from httr2::resp_body_json(simplifyVector = FALSE) may carry
+# NULL / length-0 fields (e.g. geometry_wkt: null). Normalise before
+# as.data.frame() so row counts stay aligned.
+.eolas_json_rows_to_df <- function(rows) {
+  if (!is.list(rows) || length(rows) == 0L) {
+    return(data.frame(stringsAsFactors = FALSE))
+  }
+  parts <- lapply(rows, function(row) {
+    if (!is.list(row)) return(NULL)
+    fixed <- lapply(row, function(v) {
+      if (is.null(v) || length(v) == 0L) NA else v
+    })
+    as.data.frame(fixed, stringsAsFactors = FALSE)
+  })
+  parts <- Filter(Negate(is.null), parts)
+  if (length(parts) == 0L) return(data.frame(stringsAsFactors = FALSE))
+  do.call(rbind, parts)
+}
+
 # Internal: fetch dataset rows as a data.frame. Negotiates Arrow IPC over the
 # wire (typed, columnar — far faster than JSON for large pulls), transparently
 # falling back to JSON for older servers, a missing `arrow` package, or any
@@ -182,7 +201,7 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
   rows <- body$data %||% body
   sources <- if (is.list(body) && !is.null(body$data_sources)) body$data_sources else NULL
   list(
-    df = as.data.frame(rows, stringsAsFactors = FALSE),
+    df = .eolas_json_rows_to_df(rows),
     resp = resp,
     data_sources = sources
   )

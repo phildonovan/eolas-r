@@ -37,7 +37,8 @@ test_that(".eolas_fetch_df uses the Arrow path when the server returns Arrow", {
   with_mocked_bindings(
     {
       fetch <- get(".eolas_fetch_df", envir = ns)
-      df <- fetch("nz_cpi", list(limit = 0L), EOLAS_BASE_URL)
+      fetched <- fetch("nz_cpi", list(limit = 0L), EOLAS_BASE_URL)
+      df <- fetched$df
       expect_equal(nrow(df), 2L)
       expect_equal(sort(names(df)), c("date", "period", "value"))
       expect_true(isTRUE(ns$.eolas_runtime$arrow_supported))

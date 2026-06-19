@@ -79,8 +79,12 @@ test_that("eolas_get live path with as_arrow=TRUE returns arrow::Table", {
       expect_true(inherits(result, "ArrowTabular"))
       expect_true("value" %in% names(result))
     },
-    .eolas_fetch_df = function(name, params, base_url) {
-      data.frame(date = "2023-01-01", value = 1100.5, stringsAsFactors = FALSE)
+    .eolas_fetch_df = function(name, params, base_url, envelope = FALSE) {
+      list(
+        df = data.frame(date = "2023-01-01", value = 1100.5, stringsAsFactors = FALSE),
+        resp = NULL,
+        data_sources = NULL
+      )
     },
     .package = "eolas"
   )
@@ -93,9 +97,15 @@ test_that("eolas_get_linz with as_arrow=TRUE returns arrow::Table", {
       result <- eolas_get_linz("nz_parcels", as_arrow = TRUE)
       expect_true(inherits(result, "ArrowTabular"))
     },
-    .eolas_fetch_df = function(name, params, base_url) {
-      data.frame(id = 1L, geometry_wkt = "POINT (174.76 -36.85)",
-                 stringsAsFactors = FALSE)
+    .eolas_fetch_df = function(name, params, base_url, envelope = FALSE) {
+      list(
+        df = data.frame(
+          id = 1L, geometry_wkt = "POINT (174.76 -36.85)",
+          stringsAsFactors = FALSE
+        ),
+        resp = NULL,
+        data_sources = NULL
+      )
     },
     .package = "eolas"
   )

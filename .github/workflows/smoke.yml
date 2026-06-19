@@ -17,6 +17,16 @@ jobs:
         with:
           needs: check
 
+      - name: Require API key on manual runs
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          EOLAS_API_KEY: ${{ secrets.EOLAS_API_KEY }}
+        run: |
+          if [ -z "$EOLAS_API_KEY" ]; then
+            echo "::error::EOLAS_API_KEY secret is required for workflow_dispatch smoke runs."
+            exit 1
+          fi
+
       - name: Install package (as users would)
         run: R CMD INSTALL .
 
@@ -25,7 +35,7 @@ jobs:
           EOLAS_API_KEY: ${{ secrets.EOLAS_API_KEY }}
         run: |
           if [ -z "$EOLAS_API_KEY" ]; then
-            echo "EOLAS_API_KEY secret not configured — skipping smoke tests."
+            echo "EOLAS_API_KEY secret not configured — skipping scheduled smoke tests."
             exit 0
           fi
           Rscript tests/smoke-live.R
