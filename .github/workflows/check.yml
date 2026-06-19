@@ -88,9 +88,14 @@ jobs:
           extra-packages: any::covr
           needs: coverage
       - name: Test coverage
-        run: Rscript -e 'covr::codecov(quiet = FALSE)'
+        run: |
+          Rscript -e '
+            cov <- covr::package_coverage()
+            covr::to_cobertura(cov, file = "cobertura-coverage.xml")
+          '
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
+          files: cobertura-coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
