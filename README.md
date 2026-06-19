@@ -1,4 +1,9 @@
-# eolas <img src="https://img.shields.io/badge/R-package-blue" align="right"/>
+# eolas
+
+[![R CMD check](https://github.com/phildonovan/eolas-r/actions/workflows/check.yml/badge.svg)](https://github.com/phildonovan/eolas-r/actions/workflows/check.yml)
+[![codecov](https://codecov.io/gh/phildonovan/eolas-r/graph/badge.svg)](https://codecov.io/gh/phildonovan/eolas-r)
+[![release](https://img.shields.io/github/v/tag/phildonovan/eolas-r?label=release)](https://github.com/phildonovan/eolas-r/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 R client for the [eolas.fyi](https://eolas.fyi) statistical data API — 1,400+ official New Zealand statistical & geospatial datasets, plus OECD data for international comparisons, returned as tidy data frames (or `sf` objects for geospatial layers).
 
@@ -221,7 +226,7 @@ Rscript -e 'devtools::test()'
 ../scripts/test-clients.sh
 ```
 
-`R CMD check` runs the same testthat suite via `tests/testthat.R`. CI runs check + coverage on every push/PR. A weekly workflow optionally hits the live API when `EOLAS_API_KEY` is configured as a repository secret.
+`R CMD check` runs the same testthat suite via `tests/testthat.R`. CI runs check + [coverage](https://codecov.io/gh/phildonovan/eolas-r) on every push/PR. A weekly workflow optionally hits the live API when `EOLAS_API_KEY` is configured as a repository secret.
 
 ## License
 
