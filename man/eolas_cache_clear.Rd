@@ -2,52 +2,67 @@
 % Please edit documentation in R/bulk.R
 \name{eolas_cache_clear}
 \alias{eolas_cache_clear}
-\title{Clear locally cached bulk files for a dataset}
+\title{Clear cached state for a dataset (or the whole library)}
 \usage{
 eolas_cache_clear(
-  name,
+  name = NULL,
   cache_dir = NULL,
   format = NULL,
+  files = TRUE,
+  meta = TRUE,
   base_url = EOLAS_BASE_URL
 )
 }
 \arguments{
-\item{name}{Dataset identifier, e.g. \code{"nz_parcels"}.}
+\item{name}{Dataset identifier, e.g. \code{"nz_parcels"}. \code{NULL} clears library-
+wide file caches (when \code{files = TRUE}) and/or all session metadata (when
+\code{meta = TRUE}).}
 
 \item{cache_dir}{Library directory. \code{NULL} (default) uses the same
 precedence chain as \code{\link[=eolas_get_local]{eolas_get_local()}} (\code{EOLAS_LIBRARY}, config, fallback).}
 
 \item{format}{\code{"parquet"}, \code{"csv_gz"}, or \code{"geoparquet"}. \code{NULL} (default)
-deletes any on-disk bulk variants for \code{name}.}
+deletes any on-disk bulk variants for \code{name} (ignored when \code{name = NULL}).}
 
-\item{base_url}{Override the API base URL (only used when \code{format} is set and
-metadata is needed — not used for the \code{NULL} sweep).}
+\item{files}{When \code{TRUE} (default), delete on-disk bulk data files and
+sidecars.}
+
+\item{meta}{When \code{TRUE} (default), drop session-cached \code{\link[=eolas_info]{eolas_info()}} for
+\code{name} (or all datasets when \code{name = NULL}).}
+
+\item{base_url}{Override the API base URL for metadata cache keys.}
 }
 \value{
-Invisibly a character vector of deleted file paths (length 0 when
-nothing was cached).
+Invisibly a list with \code{files} (character vector of deleted paths)
+and \code{meta_cleared} (integer count of session cache entries removed).
 }
 \description{
-Deletes the cached data file and its \code{.eolas-meta.json} sidecar from the
-eolas library directory. Does \strong{not} contact the API — use
-\code{\link[=eolas_get_local]{eolas_get_local()}} or \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}} with \code{force = TRUE} to
-re-download immediately after clearing.
+eolas caches at two levels: \strong{session metadata} (\code{eolas_info()} per dataset,
+used for routing and attached column glosses) and \strong{on-disk bulk files}
+(Parquet/GeoParquet in the library directory, with \code{.eolas-meta.json}
+sidecars). This function clears one or both without contacting the API.
 }
 \details{
-When \code{format = NULL}, removes files for \strong{all} bulk extensions
-(\code{.parquet}, \code{.csv.gz}, \code{.geo.parquet}) that exist for \code{name}, so prior
-\code{format = "csv_gz"} caches are cleaned up too.
+Use \code{\link[=eolas_get]{eolas_get()}} or \code{\link[=eolas_get_local]{eolas_get_local()}} with \code{force = TRUE} to clear caches
+and immediately re-fetch in one step.
+
+When \code{name} is set and \code{format = NULL}, removes on-disk files for \strong{all}
+bulk extensions (\code{.parquet}, \code{.csv.gz}, \code{.geo.parquet}) that exist for that
+dataset. When \code{name = NULL} and \code{files = TRUE}, sweeps the entire library
+directory for bulk data files and sidecars.
 }
 \examples{
 \dontrun{
 # Free disk space without re-downloading
 eolas_cache_clear("nz_parcels")
 
-# Clear then force a fresh pull
-eolas_cache_clear("nz_parcels")
-gdf <- eolas_get_local("nz_parcels", force = TRUE)
+# Metadata only (e.g. after a warehouse schema change)
+eolas_cache_clear("nz_cpi", files = FALSE)
+
+# Nuclear option — wipe library files + all session metadata
+eolas_cache_clear(name = NULL)
 }
 }
 \seealso{
-\code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}, \code{\link[=eolas_get_local]{eolas_get_local()}}, \code{\link[=eolas_library_status]{eolas_library_status()}}
+\code{\link[=eolas_get]{eolas_get()}}, \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}, \code{\link[=eolas_get_local]{eolas_get_local()}}, \code{\link[=eolas_library_status]{eolas_library_status()}}
 }

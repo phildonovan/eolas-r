@@ -58,8 +58,9 @@ Use \code{"download"} or \code{"read"} to show only one phase. Suppressed by
 \code{EOLAS_NO_PROGRESS=1}. Cached snapshots skip the download bar and print
 an informative message instead.}
 
-\item{force}{When \code{TRUE}, re-download the bulk file even when the local
-sidecar says the snapshot is current. See \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}.}
+\item{force}{When \code{TRUE}, drop session \code{\link[=eolas_info]{eolas_info()}} cache and re-download
+the bulk file even when the sidecar says the snapshot is current. See
+\code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}} and \code{\link[=eolas_cache_clear]{eolas_cache_clear()}}.}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 

@@ -57,6 +57,28 @@
   info
 }
 
+# Drop session-cached eolas_info() for one dataset (or all when name is NULL).
+.eolas_meta_cache_clear <- function(name = NULL, base_url = EOLAS_BASE_URL) {
+  if (is.null(name)) {
+    keys <- ls(.eolas_meta_cache, all.names = TRUE)
+    if (length(keys)) rm(list = keys, envir = .eolas_meta_cache)
+    return(invisible(length(keys)))
+  }
+  key <- .eolas_meta_cache_key(name, base_url)
+  if (exists(key, envir = .eolas_meta_cache, inherits = FALSE)) {
+    rm(list = key, envir = .eolas_meta_cache)
+    invisible(1L)
+  } else {
+    invisible(0L)
+  }
+}
+
+# force=TRUE: forget cached metadata before the next fetch/routing decision.
+.eolas_apply_force <- function(name, force, base_url = EOLAS_BASE_URL) {
+  if (isTRUE(force)) .eolas_meta_cache_clear(name, base_url = base_url)
+  invisible(NULL)
+}
+
 .eolas_table_meta <- function(info) {
   if (is.null(info) || !is.data.frame(info) || nrow(info) < 1L) return(NULL)
   drop <- intersect("columns", names(info))

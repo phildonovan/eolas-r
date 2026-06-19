@@ -40,7 +40,7 @@ Cannot be combined with \code{as_sf = TRUE}.}
 auto-routed to \code{\link[=eolas_get_local]{eolas_get_local()}}. \code{NULL} (default) shows progress in
 interactive sessions. See \code{\link[=eolas_get]{eolas_get()}}.}
 
-\item{force}{Re-download the bulk cache even when locally current. See
+\item{force}{Bypass session metadata and on-disk bulk caches. See
 \code{\link[=eolas_get]{eolas_get()}} and \code{\link[=eolas_cache_clear]{eolas_cache_clear()}}.}
 }
 \value{

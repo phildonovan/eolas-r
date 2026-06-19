@@ -149,6 +149,7 @@ eolas_sync_changes <- function(name, path, format = "parquet", progress = NULL,
   }
   out_path <- path.expand(path)
   sidecar_path <- paste0(out_path, ".eolas-meta.json")
+  .eolas_apply_force(name, force, base_url = base_url)
 
   sidecar <- if (file.exists(sidecar_path)) .read_sidecar(sidecar_path) else NULL
   needs_baseline <- is.null(sidecar) ||

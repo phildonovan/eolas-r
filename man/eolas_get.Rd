@@ -57,10 +57,11 @@ auto-routed to \code{\link[=eolas_get_local]{eolas_get_local()}}. \code{NULL} (d
 interactive sessions; set \code{EOLAS_NO_PROGRESS=1} to suppress. Ignored on the
 live API path. See \code{\link[=eolas_get_local]{eolas_get_local()}} for \code{"download"} / \code{"read"} selectors.}
 
-\item{force}{When \code{TRUE} and the request is auto-routed to \code{\link[=eolas_get_local]{eolas_get_local()}},
-re-download the bulk file even when the local cache is current. See
-\code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}. Use \code{\link[=eolas_cache_clear]{eolas_cache_clear()}} to delete cache without
-re-downloading.}
+\item{force}{When \code{TRUE}, bypass caches for this dataset: drop the session
+\code{\link[=eolas_info]{eolas_info()}} cache and, when auto-routed to \code{\link[=eolas_get_local]{eolas_get_local()}},
+re-download the on-disk bulk file even when the sidecar says it is current.
+On the live API path, data is always fetched fresh; \code{force} ensures
+metadata and bulk routing decisions are too. See \code{\link[=eolas_cache_clear]{eolas_cache_clear()}}.}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 

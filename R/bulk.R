@@ -594,6 +594,7 @@ eolas_sync_bulk <- function(name,
   }
   format    <- match.arg(format,    .BULK_VALID_FORMATS)
   freshness <- match.arg(freshness, .BULK_VALID_FRESHNESS)
+  .eolas_apply_force(name, force, base_url = base_url)
 
   out_path    <- normalizePath(path, mustWork = FALSE)
   sidecar_path <- paste0(out_path, ".eolas-meta.json")
@@ -744,74 +745,115 @@ eolas_sync_bulk <- function(name,
 # eolas_cache_clear — remove local bulk-cache files without re-downloading
 # -------------------------------------------------------------------------
 
-#' Clear locally cached bulk files for a dataset
+#' Clear cached state for a dataset (or the whole library)
 #'
-#' Deletes the cached data file and its `.eolas-meta.json` sidecar from the
-#' eolas library directory. Does **not** contact the API — use
-#' [eolas_get_local()] or [eolas_sync_bulk()] with `force = TRUE` to
-#' re-download immediately after clearing.
+#' eolas caches at two levels: **session metadata** (`eolas_info()` per dataset,
+#' used for routing and attached column glosses) and **on-disk bulk files**
+#' (Parquet/GeoParquet in the library directory, with `.eolas-meta.json`
+#' sidecars). This function clears one or both without contacting the API.
 #'
-#' When `format = NULL`, removes files for **all** bulk extensions
-#' (`.parquet`, `.csv.gz`, `.geo.parquet`) that exist for `name`, so prior
-#' `format = "csv_gz"` caches are cleaned up too.
+#' Use [eolas_get()] or [eolas_get_local()] with `force = TRUE` to clear caches
+#' and immediately re-fetch in one step.
 #'
-#' @param name Dataset identifier, e.g. `"nz_parcels"`.
+#' When `name` is set and `format = NULL`, removes on-disk files for **all**
+#' bulk extensions (`.parquet`, `.csv.gz`, `.geo.parquet`) that exist for that
+#' dataset. When `name = NULL` and `files = TRUE`, sweeps the entire library
+#' directory for bulk data files and sidecars.
+#'
+#' @param name Dataset identifier, e.g. `"nz_parcels"`. `NULL` clears library-
+#'   wide file caches (when `files = TRUE`) and/or all session metadata (when
+#'   `meta = TRUE`).
 #' @param cache_dir Library directory. `NULL` (default) uses the same
 #'   precedence chain as [eolas_get_local()] (`EOLAS_LIBRARY`, config, fallback).
 #' @param format `"parquet"`, `"csv_gz"`, or `"geoparquet"`. `NULL` (default)
-#'   deletes any on-disk bulk variants for `name`.
-#' @param base_url Override the API base URL (only used when `format` is set and
-#'   metadata is needed — not used for the `NULL` sweep).
-#' @return Invisibly a character vector of deleted file paths (length 0 when
-#'   nothing was cached).
+#'   deletes any on-disk bulk variants for `name` (ignored when `name = NULL`).
+#' @param files When `TRUE` (default), delete on-disk bulk data files and
+#'   sidecars.
+#' @param meta When `TRUE` (default), drop session-cached [eolas_info()] for
+#'   `name` (or all datasets when `name = NULL`).
+#' @param base_url Override the API base URL for metadata cache keys.
+#' @return Invisibly a list with `files` (character vector of deleted paths)
+#'   and `meta_cleared` (integer count of session cache entries removed).
 #' @export
 #' @examples
 #' \dontrun{
 #' # Free disk space without re-downloading
 #' eolas_cache_clear("nz_parcels")
 #'
-#' # Clear then force a fresh pull
-#' eolas_cache_clear("nz_parcels")
-#' gdf <- eolas_get_local("nz_parcels", force = TRUE)
+#' # Metadata only (e.g. after a warehouse schema change)
+#' eolas_cache_clear("nz_cpi", files = FALSE)
+#'
+#' # Nuclear option — wipe library files + all session metadata
+#' eolas_cache_clear(name = NULL)
 #' }
-#' @seealso [eolas_sync_bulk()], [eolas_get_local()], [eolas_library_status()]
-eolas_cache_clear <- function(name,
+#' @seealso [eolas_get()], [eolas_sync_bulk()], [eolas_get_local()], [eolas_library_status()]
+eolas_cache_clear <- function(name = NULL,
                               cache_dir = NULL,
                               format    = NULL,
+                              files     = TRUE,
+                              meta      = TRUE,
                               base_url  = EOLAS_BASE_URL) {
-  if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
-    stop("`name` must be a non-empty string.", call. = FALSE)
+  if (!is.null(name) && (!is.character(name) || length(name) != 1L || !nzchar(name))) {
+    stop("`name` must be NULL or a non-empty string.", call. = FALSE)
   }
-  if (is.null(cache_dir)) {
-    cache_dir_expanded <- eolas_resolve_library_dir()
-  } else {
-    cache_dir_expanded <- path.expand(as.character(cache_dir))
-  }
-  cache_dir_abs <- tools::file_path_as_absolute(cache_dir_expanded)
 
-  paths <- if (is.null(format)) {
-    unlist(lapply(.BULK_EXTENSIONS, function(ext) {
-      p <- file.path(cache_dir_abs, paste0(name, ext))
-      c(p, paste0(p, ".eolas-meta.json"))
-    }), use.names = FALSE)
+  meta_n <- if (isTRUE(meta)) {
+    .eolas_meta_cache_clear(name, base_url = base_url)
   } else {
-    p <- .eolas_bulk_cache_paths(name, cache_dir_abs, format = format, base_url = base_url)
-    c(p$data_path, p$sidecar_path)
+    0L
   }
 
   deleted <- character(0)
-  for (p in unique(paths)) {
-    if (file.exists(p)) {
-      unlink(p)
-      deleted <- c(deleted, normalizePath(p, mustWork = FALSE))
+  if (isTRUE(files)) {
+    if (is.null(cache_dir)) {
+      cache_dir_expanded <- eolas_resolve_library_dir()
+    } else {
+      cache_dir_expanded <- path.expand(as.character(cache_dir))
+    }
+    cache_dir_abs <- tools::file_path_as_absolute(cache_dir_expanded)
+
+    paths <- if (is.null(name)) {
+      if (!dir.exists(cache_dir_abs)) {
+        character(0)
+      } else {
+        all_files <- list.files(cache_dir_abs, full.names = TRUE, no.quote = TRUE)
+        bulk_exts <- paste0("\\", gsub(".", "\\\\.", unname(.BULK_EXTENSIONS), fixed = TRUE), "$")
+        is_bulk <- grepl(paste(bulk_exts, collapse = "|"), all_files)
+        is_sidecar <- grepl("\\.eolas-meta\\.json$", all_files)
+        all_files[is_bulk | is_sidecar]
+      }
+    } else if (is.null(format)) {
+      unlist(lapply(.BULK_EXTENSIONS, function(ext) {
+        p <- file.path(cache_dir_abs, paste0(name, ext))
+        c(p, paste0(p, ".eolas-meta.json"))
+      }), use.names = FALSE)
+    } else {
+      p <- .eolas_bulk_cache_paths(name, cache_dir_abs, format = format, base_url = base_url)
+      c(p$data_path, p$sidecar_path)
+    }
+
+    for (p in unique(paths)) {
+      if (file.exists(p)) {
+        unlink(p)
+        deleted <- c(deleted, normalizePath(p, mustWork = FALSE))
+      }
     }
   }
-  if (length(deleted) && requireNamespace("cli", quietly = TRUE)) {
+
+  if ((length(deleted) || meta_n > 0L) && requireNamespace("cli", quietly = TRUE)) {
+    label <- if (is.null(name)) "all datasets" else name
+    parts <- character(0)
+    if (length(deleted)) {
+      parts <- c(parts, paste0(length(deleted), " file", if (length(deleted) != 1L) "s"))
+    }
+    if (meta_n > 0L) {
+      parts <- c(parts, paste0(meta_n, " metadata entr", if (meta_n != 1L) "ies" else "y"))
+    }
     cli::cli_inform(c(
-      "i" = "Cleared {length(deleted)} cached file{?s} for {.field {name}}."
+      "i" = "Cleared {paste(parts, collapse = ' and ')} for {.field {label}}."
     ))
   }
-  invisible(deleted)
+  invisible(list(files = deleted, meta_cleared = meta_n))
 }
 
 
@@ -879,8 +921,9 @@ eolas_cache_clear <- function(name,
 #'   Use `"download"` or `"read"` to show only one phase. Suppressed by
 #'   `EOLAS_NO_PROGRESS=1`. Cached snapshots skip the download bar and print
 #'   an informative message instead.
-#' @param force When `TRUE`, re-download the bulk file even when the local
-#'   sidecar says the snapshot is current. See [eolas_sync_bulk()].
+#' @param force When `TRUE`, drop session [eolas_info()] cache and re-download
+#'   the bulk file even when the sidecar says the snapshot is current. See
+#'   [eolas_sync_bulk()] and [eolas_cache_clear()].
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved for future arguments; currently ignored.
 #' @return A `data.frame`, `sf` object, or `arrow::Table`, depending on the
@@ -927,6 +970,7 @@ eolas_get_local <- function(name,
     stop("`name` must be a non-empty string.", call. = FALSE)
   }
   freshness <- match.arg(freshness, .BULK_VALID_FRESHNESS)
+  .eolas_apply_force(name, force, base_url = base_url)
 
   # ---- as_arrow / as_sf conflict guard -------------------------------------
   if (isTRUE(as_arrow) && isTRUE(as_sf)) {
