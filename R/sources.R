@@ -703,7 +703,7 @@ eolas_get_manawatu_whanganui <- function(name, start = NULL, end = NULL, limit =
 #' List all Manawatu-Whanganui Councils datasets available in eolas
 #' @return A data frame (tibble if available) of dataset metadata.
 #' @export
-eolas_list_manawatu_whanganui <- function() .eolas_list_source("Manawat\u016b-Whanganui Councils")
+eolas_list_manawatu_whanganui <- function() .eolas_list_source("Manawatu-Whanganui Councils")
 
 
 # ---------------------------------------------------------------------------

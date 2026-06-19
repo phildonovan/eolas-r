@@ -283,3 +283,16 @@ with_mock_get_local <- function(meta_json, file_writer, code) {
     .package = "eolas"
   )
 }
+
+# ---------------------------------------------------------------------------
+# Source-specific get/list wrappers (fixtures/source-wrappers.rds)
+# ---------------------------------------------------------------------------
+
+source_wrapper_catalog <- function() {
+  readRDS(file.path(testthat::test_path(), "fixtures", "source-wrappers.rds"))
+}
+
+SOURCE_DATA_BODY <- '{"data":[
+  {"date":"2023-01-01","period":"2023Q1","value":100.0},
+  {"date":"2023-04-01","period":"2023Q2","value":101.5}
+]}'
