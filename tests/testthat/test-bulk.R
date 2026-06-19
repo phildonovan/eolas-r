@@ -237,7 +237,7 @@ test_that("eolas_cache_clear can drop session metadata without deleting files", 
   expect_false(exists(key, envir = eolas:::.eolas_meta_cache, inherits = FALSE))
 })
 
-test_that("eolas_get force=TRUE clears session metadata before fetch", {
+test_that("eolas_get force=TRUE is ignored on live API path", {
   info_calls <- 0L
   set_test_key()
   local_mocked_bindings(
@@ -258,8 +258,11 @@ test_that("eolas_get force=TRUE clears session metadata before fetch", {
     .package = "eolas"
   )
 
+  # Prime session metadata cache, then force on live path should not clear it.
+  eolas_get("nz_cpi")
+  info_calls_before <- info_calls
   eolas_get("nz_cpi", force = TRUE)
-  expect_equal(info_calls, 1L)
+  expect_equal(info_calls, info_calls_before)
 })
 
 test_that("eolas_sync_bulk updated: file replaced, sidecar updated, status=updated", {

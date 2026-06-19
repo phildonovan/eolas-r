@@ -124,6 +124,11 @@ test_that(".eolas_resolve_progress routes phases correctly", {
   expect_false(eolas:::.eolas_resolve_progress("download", "read"))
 })
 
+test_that(".eolas_resp_content_length returns NA when header is absent", {
+  resp <- httr2::response(status = 200, body = charToRaw("ok"))
+  expect_equal(eolas:::.eolas_resp_content_length(resp), NA_real_)
+})
+
 # ---------------------------------------------------------------------------
 # eolas_download_bulk: bytes mode (path=NULL) ignores progress arg
 # ---------------------------------------------------------------------------

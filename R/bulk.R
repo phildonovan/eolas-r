@@ -90,10 +90,20 @@
 # `show_bar`    — logical; TRUE → show cli bar, FALSE → silent.
 #
 # Returns the number of bytes written.
+.eolas_resp_content_length <- function(resp) {
+  val <- tryCatch(httr2::resp_header(resp, "Content-Length"), error = function(e) NULL)
+  if (is.null(val) || length(val) == 0L || is.na(val[[1L]]) || !nzchar(val[[1L]])) {
+    return(NA_real_)
+  }
+  out <- suppressWarnings(as.numeric(val[[1L]]))
+  if (length(out) != 1L || is.na(out)) NA_real_ else out
+}
+
 .eolas_stream_to_file <- function(resp, dest_path, total_bytes, label, show_bar) {
   CHUNK <- 1048576L  # 1 MiB per chunk
 
   has_cli <- requireNamespace("cli", quietly = TRUE)
+  if (length(total_bytes) != 1L) total_bytes <- NA_real_
 
   if (show_bar && has_cli) {
     bar_id <- cli::cli_progress_bar(
@@ -401,10 +411,7 @@ eolas_download_bulk <- function(name,
   dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
 
   show_bar    <- .eolas_resolve_progress(progress, "download")
-  total_bytes <- tryCatch(
-    as.numeric(httr2::resp_header(conn_resp, "Content-Length")),
-    error = \(e) NA_real_
-  )
+  total_bytes <- .eolas_resp_content_length(conn_resp)
   label <- paste0("Downloading ", basename(out_path))
 
   rand_hex <- paste0(sample(c(0:9, letters[1:6]), 8, replace = TRUE), collapse = "")
@@ -691,10 +698,7 @@ eolas_sync_bulk <- function(name,
   }
 
   show_bar    <- .eolas_resolve_progress(progress, "download")
-  total_bytes <- tryCatch(
-    as.numeric(httr2::resp_header(conn_resp, "Content-Length")),
-    error = \(e) NA_real_
-  )
+  total_bytes <- .eolas_resp_content_length(conn_resp)
   label <- paste0("Downloading ", basename(out_path))
 
   if (use_streaming) {

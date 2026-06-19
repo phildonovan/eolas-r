@@ -48,8 +48,9 @@
 #' @param progress Bulk download/read progress when a whole-dataset pull is
 #'   auto-routed to [eolas_get_local()]. `NULL` (default) shows progress in
 #'   interactive sessions. See [eolas_get()].
-#' @param force Bypass session metadata and on-disk bulk caches. See
-#'   [eolas_get()] and [eolas_cache_clear()].
+#' @param force When auto-routed to [eolas_get_local()], bypass session metadata
+#'   and on-disk bulk caches. Ignored on the live API path. See
+#'   [eolas_cache_clear()].
 #' @return A `eolas_dataset` data frame, an `sf` object when geometry is present
 #'   and conversion is enabled, or an `arrow::Table` when `as_arrow = TRUE`.
 #' @export

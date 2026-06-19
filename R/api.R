@@ -227,11 +227,10 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #'   auto-routed to [eolas_get_local()]. `NULL` (default) shows both phases in
 #'   interactive sessions; set `EOLAS_NO_PROGRESS=1` to suppress. Ignored on the
 #'   live API path. See [eolas_get_local()] for `"download"` / `"read"` selectors.
-#' @param force When `TRUE`, bypass caches for this dataset: drop the session
-#'   [eolas_info()] cache and, when auto-routed to [eolas_get_local()],
-#'   re-download the on-disk bulk file even when the sidecar says it is current.
-#'   On the live API path, data is always fetched fresh; `force` ensures
-#'   metadata and bulk routing decisions are too. See [eolas_cache_clear()].
+#' @param force When `TRUE` and the request is auto-routed to [eolas_get_local()],
+#'   drop session [eolas_info()] cache and re-download the on-disk bulk file
+#'   even when the sidecar says it is current. Ignored on the live API path
+#'   (no row cache there). See [eolas_cache_clear()].
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Forwarded to [eolas_get_local()] on auto-route (`cache_dir`,
 #'   `format`, `freshness`, etc.).
@@ -268,7 +267,6 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   }
 
   limits <- .eolas_resolve_fetch_limit(limit)
-  .eolas_apply_force(name, force, base_url = base_url)
 
   # Whole-dataset pull on large/geo tables → bulk cache (mirrors Python get()).
   if (is.null(start) && is.null(end) && is.null(limit) &&
