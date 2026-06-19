@@ -95,6 +95,10 @@
 
 .eolas_live_pull_blocked <- function(meta) {
   if (.eolas_meta_truthy(meta, "has_geometry")) return(TRUE)
+  gt <- .eolas_dataset_field(meta, "geometry_type", "")
+  wkt <- .eolas_dataset_field(meta, "geometry_wkt", "")
+  if (nzchar(gt) && !identical(tolower(gt), "none")) return(TRUE)
+  if (nzchar(wkt) && !identical(tolower(wkt), "none")) return(TRUE)
   row_count <- suppressWarnings(as.integer(
     .eolas_dataset_field(meta, "row_count_at_last_refresh", 0L)
   ))
@@ -214,20 +218,10 @@
       !.eolas_live_pull_blocked(meta_info)) {
     return(NULL)
   }
-  tryCatch(
-    eolas_get_local(
-      name = name, as_sf = as_sf, as_arrow = FALSE, meta = meta,
-      progress = progress, base_url = base_url, ...
-    ),
-    error = function(e) {
-      msg <- conditionMessage(e)
-      if (grepl("^Bulk upgrade required:", msg) ||
-          grepl("^Bulk licence restricted:", msg) ||
-          grepl("^Bulk not yet available:", msg)) {
-        stop(e)
-      }
-      NULL
-    }
+  # Routing decision is final — never fall back to the live /data path (413).
+  eolas_get_local(
+    name = name, as_sf = as_sf, as_arrow = FALSE, meta = meta,
+    progress = progress, base_url = base_url, ...
   )
 }
 

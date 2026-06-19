@@ -407,6 +407,24 @@ test_that("eolas_get_linz forwards progress to auto-routed eolas_get_local", {
   expect_equal(attr(result, "eolas_source"), "LINZ")
 })
 
+test_that("eolas_get does not fall back to live API when bulk route fails", {
+  set_test_key()
+  local_mocked_bindings(
+    .eolas_info_cached = function(name, base_url = EOLAS_BASE_URL) {
+      parse_geo_meta()
+    },
+    eolas_get_local = function(name, ...) {
+      stop("bulk read failed", call. = FALSE)
+    },
+    eolas_http_perform = function(req) {
+      stop("live path should not run", call. = FALSE)
+    },
+    .package = "eolas"
+  )
+
+  expect_error(eolas_get("nz_parcels"), "bulk read failed", fixed = TRUE)
+})
+
 test_that("eolas_get does not auto-route when a date filter is set", {
   routed <- FALSE
 
