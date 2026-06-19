@@ -99,21 +99,36 @@
   if (length(out) != 1L || is.na(out)) NA_real_ else out
 }
 
+.eolas_download_progress_format <- function(total_bytes) {
+  known_total <- length(total_bytes) == 1L && !is.na(total_bytes)
+  if (known_total) {
+    paste0(
+      "{cli::pb_name} ",
+      "{cli::pb_current_bytes}/{cli::pb_total_bytes} ",
+      "{cli::pb_rate_bytes} ETA {cli::pb_eta}"
+    )
+  } else {
+    # CDN often omits Content-Length — never reference pb_total_bytes/pb_eta then.
+    paste0(
+      "{cli::pb_name} ",
+      "{cli::pb_current_bytes} ",
+      "{cli::pb_rate_bytes}"
+    )
+  }
+}
+
 .eolas_stream_to_file <- function(resp, dest_path, total_bytes, label, show_bar) {
   CHUNK <- 1048576L  # 1 MiB per chunk
 
   has_cli <- requireNamespace("cli", quietly = TRUE)
   if (length(total_bytes) != 1L) total_bytes <- NA_real_
+  known_total <- length(total_bytes) == 1L && !is.na(total_bytes)
 
   if (show_bar && has_cli) {
     bar_id <- cli::cli_progress_bar(
       name   = label,
-      total  = if (is.na(total_bytes)) NA else total_bytes,
-      format = paste0(
-        "{cli::pb_name} ",
-        "{cli::pb_current_bytes}/{cli::pb_total_bytes} ",
-        "{cli::pb_rate_bytes} ETA {cli::pb_eta}"
-      ),
+      total  = if (known_total) total_bytes else NA,
+      format = .eolas_download_progress_format(total_bytes),
       clear  = FALSE
     )
     on.exit(cli::cli_progress_done(id = bar_id), add = TRUE)
@@ -820,7 +835,7 @@ eolas_cache_clear <- function(name = NULL,
       if (!dir.exists(cache_dir_abs)) {
         character(0)
       } else {
-        all_files <- list.files(cache_dir_abs, full.names = TRUE, no.quote = TRUE)
+        all_files <- list.files(cache_dir_abs, full.names = TRUE)
         bulk_exts <- paste0("\\", gsub(".", "\\\\.", unname(.BULK_EXTENSIONS), fixed = TRUE), "$")
         is_bulk <- grepl(paste(bulk_exts, collapse = "|"), all_files)
         is_sidecar <- grepl("\\.eolas-meta\\.json$", all_files)

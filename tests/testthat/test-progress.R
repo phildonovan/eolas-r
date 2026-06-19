@@ -129,6 +129,15 @@ test_that(".eolas_resp_content_length returns NA when header is absent", {
   expect_equal(eolas:::.eolas_resp_content_length(resp), NA_real_)
 })
 
+test_that(".eolas_download_progress_format omits total when size unknown", {
+  fmt <- eolas:::.eolas_download_progress_format(NA_real_)
+  expect_false(grepl("pb_total_bytes", fmt, fixed = TRUE))
+  expect_false(grepl("pb_eta", fmt, fixed = TRUE))
+
+  fmt_known <- eolas:::.eolas_download_progress_format(1024)
+  expect_true(grepl("pb_total_bytes", fmt_known, fixed = TRUE))
+})
+
 # ---------------------------------------------------------------------------
 # eolas_download_bulk: bytes mode (path=NULL) ignores progress arg
 # ---------------------------------------------------------------------------
