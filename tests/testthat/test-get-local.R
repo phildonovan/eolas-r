@@ -105,8 +105,12 @@ test_that("eolas_get_local expands ~ in cache_dir to an absolute path", {
 
   eolas_get_local("nz_cpi", format = "csv_gz", cache_dir = "~/.cache/eolas")
 
+  expected_path <- file.path(
+    tools::file_path_as_absolute(path.expand("~/.cache/eolas")),
+    "nz_cpi.csv.gz"
+  )
   expect_false(grepl("~", actual_path_seen, fixed = TRUE))
-  expect_true(startsWith(actual_path_seen, "/"))
+  expect_same_path(actual_path_seen, expected_path)
 })
 
 # ---------------------------------------------------------------------------

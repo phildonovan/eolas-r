@@ -14,6 +14,19 @@ SNAPSHOT_V1 <- "5503437996448954328"
 SNAPSHOT_V2 <- "7041234567890123456"
 SNAPSHOT_ID <- "snap_abc123"
 
+# Compare filesystem paths across OS quirks (/private/var on macOS, drive letters on Windows).
+expect_same_path <- function(actual, expected) {
+  normalize_for_compare <- function(p) {
+    p <- path.expand(p)
+    if (file.exists(p)) {
+      normalizePath(p, winslash = "/", mustWork = TRUE)
+    } else {
+      normalizePath(p, winslash = "/", mustWork = FALSE)
+    }
+  }
+  expect_equal(normalize_for_compare(actual), normalize_for_compare(expected))
+}
+
 BULK_DATASET_META <- jsonlite::toJSON(
   list(
     name      = "nz_cpi",
