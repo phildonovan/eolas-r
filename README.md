@@ -2,6 +2,8 @@
 
 [![R CMD check](https://github.com/phildonovan/eolas-r/actions/workflows/check.yml/badge.svg)](https://github.com/phildonovan/eolas-r/actions/workflows/check.yml)
 [![codecov](https://codecov.io/gh/phildonovan/eolas-r/graph/badge.svg)](https://codecov.io/gh/phildonovan/eolas-r)
+[![r-universe](https://phildonovan.r-universe.dev/badges/eolas)](https://phildonovan.r-universe.dev/eolas)
+[![r-universe registry](https://phildonovan.r-universe.dev/badges/:registry)](https://phildonovan.r-universe.dev)
 [![release](https://img.shields.io/github/v/tag/phildonovan/eolas-r?label=release)](https://github.com/phildonovan/eolas-r/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -10,6 +12,14 @@ R client for the [eolas.fyi](https://eolas.fyi) statistical data API — 1,400+ 
 _Coverage is New Zealand + OECD today. Australian sources are on the roadmap — not yet available; OECD data already includes Australia (and other OECD members) for cross-country comparisons._
 
 ## Installation
+
+From [r-universe](https://phildonovan.r-universe.dev) (recommended — pre-built binaries, no compiler needed):
+
+```r
+install.packages("eolas", repos = c("https://phildonovan.r-universe.dev", "https://cloud.r-project.org"))
+```
+
+Or from GitHub (source build):
 
 ```r
 remotes::install_github("phildonovan/eolas-r")
