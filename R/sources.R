@@ -45,6 +45,9 @@
 #' @param as_arrow When `TRUE`, return an `arrow::Table` instead of a
 #'   data frame or `sf` object (zero-copy, no geometry materialisation).
 #'   Cannot be combined with `as_sf = TRUE`.
+#' @param progress Bulk download/read progress when a whole-dataset pull is
+#'   auto-routed to [eolas_get_local()]. `NULL` (default) shows progress in
+#'   interactive sessions. See [eolas_get()].
 #' @return A `eolas_dataset` data frame, an `sf` object when geometry is present
 #'   and conversion is enabled, or an `arrow::Table` when `as_arrow = TRUE`.
 #' @export

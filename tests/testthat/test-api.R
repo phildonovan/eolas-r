@@ -342,3 +342,94 @@ test_that("eolas_get on non-geospatial dataset returns eolas_dataset even when s
     expect_s3_class(df, "eolas_dataset")
   })
 })
+
+parse_geo_meta <- function(body = DATASET_META_GEO) {
+  eolas:::.eolas_parse_info_response(
+    jsonlite::fromJSON(body, simplifyVector = FALSE)
+  )
+}
+
+test_that("eolas_get auto-routes whole-dataset geo pulls to eolas_get_local", {
+  routed_name <- NULL
+  live_called <- FALSE
+
+  set_test_key()
+  local_mocked_bindings(
+    .eolas_info_cached = function(name, base_url = EOLAS_BASE_URL) {
+      parse_geo_meta()
+    },
+    eolas_get_local = function(name, ...) {
+      routed_name <<- name
+      eolas:::new_eolas_dataset(data.frame(id = 1L), name = name)
+    },
+    eolas_http_perform = function(req) {
+      live_called <<- TRUE
+      stop("live path should not run", call. = FALSE)
+    },
+    .package = "eolas"
+  )
+
+  result <- eolas_get("nz_parcels")
+  expect_equal(routed_name, "nz_parcels")
+  expect_false(live_called)
+  expect_s3_class(result, "eolas_dataset")
+})
+
+test_that("eolas_get_linz forwards progress to auto-routed eolas_get_local", {
+  progress_seen <- NULL
+  addresses_meta <- jsonlite::toJSON(
+    list(
+      name = "nz_addresses",
+      namespace = "linz",
+      table = "nz_addresses",
+      has_geometry = TRUE,
+      bulk_export_class = "geoparquet",
+      row_count_at_last_refresh = 2418264L
+    ),
+    auto_unbox = TRUE
+  )
+
+  set_test_key()
+  local_mocked_bindings(
+    .eolas_info_cached = function(name, base_url = EOLAS_BASE_URL) {
+      parse_geo_meta(addresses_meta)
+    },
+    eolas_get_local = function(name, progress = NULL, ...) {
+      progress_seen <<- progress
+      eolas:::new_eolas_dataset(data.frame(id = 1L), name = name)
+    },
+    .package = "eolas"
+  )
+
+  result <- eolas_get_linz("nz_addresses", progress = TRUE)
+  expect_true(identical(progress_seen, TRUE))
+  expect_s3_class(result, "eolas_dataset")
+  expect_equal(attr(result, "eolas_source"), "LINZ")
+})
+
+test_that("eolas_get does not auto-route when a date filter is set", {
+  routed <- FALSE
+
+  set_test_key()
+  local_mocked_bindings(
+    .eolas_info_cached = function(name, base_url = EOLAS_BASE_URL) {
+      parse_geo_meta()
+    },
+    eolas_get_local = function(name, ...) {
+      routed <<- TRUE
+      eolas:::new_eolas_dataset(data.frame(id = 1L), name = name)
+    },
+    eolas_http_perform = function(req) {
+      url <- httr2::req_get_url(req)
+      if (grepl("/data($|\\?)", url)) {
+        httr2_mock_resp('{"data":[{"id":1}]}', 200L)
+      } else {
+        httr2_mock_resp(MOCK_DATASET_INFO, 200L)
+      }
+    },
+    .package = "eolas"
+  )
+
+  eolas_get("nz_parcels", start = "2020-01-01")
+  expect_false(routed)
+})

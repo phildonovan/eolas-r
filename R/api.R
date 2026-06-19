@@ -193,8 +193,11 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' The generic workhorse — use [eolas_get_statsnz()], [eolas_get_oecd()] etc. for
 #' source-tagged results and a nicer print output.
 #'
-#' Hits the live `/v1/datasets/{name}/data` endpoint.  Use [eolas_download_bulk()]
-#' or [eolas_sync_bulk()] for large datasets or whole-dataset pulls.
+#' Hits the live `/v1/datasets/{name}/data` endpoint for slices and smaller
+#' datasets.  Whole-dataset pulls on large or geospatial tables are
+#' **auto-routed** to [eolas_get_local()] (CDN-backed Parquet/GeoParquet) —
+#' so `eolas_get("nz_addresses")` and `eolas_get_linz("nz_addresses")` work
+#' without hitting the API 413 guard.
 #'
 #' @param name Dataset identifier, e.g. `"nz_cpi"`.
 #' @param start ISO date lower bound, e.g. `"2020-01-01"`. Optional.
@@ -220,7 +223,13 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' @param envelope When `TRUE`, request `?envelope=1` (JSON only) and attach
 #'   the `data_sources` licence block. Response `X-Eolas-*` headers are merged
 #'   into metadata.
+#' @param progress Control bulk download/read progress when the request is
+#'   auto-routed to [eolas_get_local()]. `NULL` (default) shows both phases in
+#'   interactive sessions; set `EOLAS_NO_PROGRESS=1` to suppress. Ignored on the
+#'   live API path. See [eolas_get_local()] for `"download"` / `"read"` selectors.
 #' @param base_url Override the API base URL (useful for testing).
+#' @param ... Forwarded to [eolas_get_local()] on auto-route (`cache_dir`,
+#'   `format`, `freshness`, etc.).
 #' @return A `eolas_dataset` tibble with `date` coerced to `Date`, or an
 #'   `sf` object when geometry is present and conversion is enabled. Table and
 #'   column metadata are attached as attributes (not printed by default).
@@ -234,7 +243,8 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' }
 eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
                    as_sf = NULL, as_arrow = FALSE, meta = TRUE,
-                   envelope = FALSE, base_url = EOLAS_BASE_URL) {
+                   envelope = FALSE, progress = NULL,
+                   base_url = EOLAS_BASE_URL, ...) {
 
   # ---- as_arrow / as_sf conflict guard ----------------------------------------
   if (isTRUE(as_arrow) && isTRUE(as_sf)) {
@@ -252,14 +262,32 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
     )
   }
 
-  # ---- live path ---------------------------------------------------------------
   limits <- .eolas_resolve_fetch_limit(limit)
+
+  # Whole-dataset pull on large/geo tables → bulk cache (mirrors Python get()).
+  if (is.null(start) && is.null(end) && is.null(limit) &&
+      !isTRUE(envelope) && !isTRUE(as_arrow)) {
+    routed <- .eolas_maybe_route_get_local(
+      name = name, as_sf = as_sf, meta = meta, progress = progress,
+      base_url = base_url, ...
+    )
+    if (!is.null(routed)) return(routed)
+  }
+
+  # ---- live path ---------------------------------------------------------------
   params <- list()
   if (!is.null(start)) params$start <- start
   if (!is.null(end))   params$end   <- end
-  params$limit <- limits$fetch
 
   meta_info <- .eolas_fetch_meta_info(name, base_url, meta)
+
+  # Positive limits on large/geo datasets must reach the API — limit=0 triggers 413.
+  if (!is.null(limits$user) && limits$user > 0L &&
+      is.null(start) && is.null(end) &&
+      !is.null(meta_info) && .eolas_live_pull_blocked(meta_info)) {
+    limits$fetch <- limits$user
+  }
+  params$limit <- limits$fetch
 
   fetched <- .eolas_fetch_df(name, params, base_url, envelope = envelope)
   df <- fetched$df

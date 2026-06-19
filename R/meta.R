@@ -79,6 +79,28 @@
   NULL
 }
 
+# Row-count threshold matching the API 413 guard and the Python client.
+.EOLAS_LARGE_DATASET_ROW_THRESHOLD <- 100000L
+
+.eolas_meta_truthy <- function(meta, field) {
+  if (is.null(meta) || !is.data.frame(meta) || nrow(meta) < 1L) return(FALSE)
+  if (!field %in% names(meta)) return(FALSE)
+  isTRUE(meta[[field]][[1]])
+}
+
+.eolas_bulk_export_allowed <- function(meta) {
+  cls <- tolower(.eolas_dataset_field(meta, "bulk_export_class", "") %||% "")
+  nzchar(cls) && cls != "none"
+}
+
+.eolas_live_pull_blocked <- function(meta) {
+  if (.eolas_meta_truthy(meta, "has_geometry")) return(TRUE)
+  row_count <- suppressWarnings(as.integer(
+    .eolas_dataset_field(meta, "row_count_at_last_refresh", 0L)
+  ))
+  isTRUE(row_count > .EOLAS_LARGE_DATASET_ROW_THRESHOLD)
+}
+
 .eolas_resolve_fetch_limit <- function(limit) {
   if (is.null(limit)) return(list(fetch = 0L, user = NULL))
   limit <- as.integer(limit)
@@ -176,6 +198,37 @@
   if (!inherits(x, "sf") || inherits(x, "tbl_df")) return(x)
   attrs <- tibble::as_tibble(sf::st_drop_geometry(x))
   sf::st_sf(attrs, geometry = sf::st_geometry(x))
+}
+
+# Whole-dataset pulls on large/geo tables → eolas_get_local() (CDN bulk cache).
+# Returns the local result, or NULL to fall through to the live API path.
+.eolas_maybe_route_get_local <- function(name, as_sf = NULL, meta = TRUE,
+                                         progress = NULL, base_url = EOLAS_BASE_URL,
+                                         ...) {
+  meta_info <- tryCatch(
+    if (isTRUE(meta)) .eolas_info_cached(name, base_url = base_url) else NULL,
+    error = function(e) NULL
+  )
+  if (is.null(meta_info) ||
+      !.eolas_bulk_export_allowed(meta_info) ||
+      !.eolas_live_pull_blocked(meta_info)) {
+    return(NULL)
+  }
+  tryCatch(
+    eolas_get_local(
+      name = name, as_sf = as_sf, as_arrow = FALSE, meta = meta,
+      progress = progress, base_url = base_url, ...
+    ),
+    error = function(e) {
+      msg <- conditionMessage(e)
+      if (grepl("^Bulk upgrade required:", msg) ||
+          grepl("^Bulk licence restricted:", msg) ||
+          grepl("^Bulk not yet available:", msg)) {
+        stop(e)
+      }
+      NULL
+    }
+  )
 }
 
 .eolas_finalize_dataset <- function(x, name, meta_info = NULL, source = NULL) {
