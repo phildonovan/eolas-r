@@ -92,5 +92,5 @@ jobs:
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
-          use_oidc: true
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
