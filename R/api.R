@@ -287,6 +287,23 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
 
   limits <- .eolas_resolve_fetch_limit(limit)
 
+  # start/end only apply when the dataset exposes a date filter column.
+  if (!is.null(start) || !is.null(end)) {
+    bounds_meta <- tryCatch(
+      if (isTRUE(meta)) .eolas_info_cached(name, base_url = base_url) else NULL,
+      error = function(e) NULL
+    )
+    resolved <- .eolas_resolve_date_bounds(bounds_meta, start, end)
+    if (isTRUE(resolved$stripped)) {
+      cli::cli_warn(c(
+        "!" = "start/end ignored for {.val {name}}: no date filter column (not a time-series table).",
+        "i" = "Use {.code limit=} for row caps or {.fn eolas_get_local} for the full table."
+      ))
+    }
+    start <- resolved$start
+    end <- resolved$end
+  }
+
   # Whole-dataset pull on large/geo tables -> bulk cache (mirrors Python get()).
   if (is.null(start) && is.null(end) && is.null(limit) &&
       !isTRUE(envelope) && !isTRUE(as_arrow)) {

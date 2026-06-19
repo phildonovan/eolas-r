@@ -444,13 +444,18 @@ test_that("eolas_get does not fall back to live API when bulk route fails", {
   expect_error(eolas_get("nz_parcels"), "bulk read failed", fixed = TRUE)
 })
 
-test_that("eolas_get does not auto-route when a date filter is set", {
+test_that("eolas_get does not auto-route when start applies to a temporal column", {
   routed <- FALSE
+  temporal_geo_meta <- function() {
+    info <- parse_geo_meta()
+    info$date_filter_column <- list("date")
+    info
+  }
 
   set_test_key()
   local_mocked_bindings(
     .eolas_info_cached = function(name, base_url = EOLAS_BASE_URL) {
-      parse_geo_meta()
+      temporal_geo_meta()
     },
     eolas_get_local = function(name, ...) {
       routed <<- TRUE
@@ -467,6 +472,31 @@ test_that("eolas_get does not auto-route when a date filter is set", {
     .package = "eolas"
   )
 
-  eolas_get("nz_parcels", start = "2020-01-01")
+  suppressWarnings(eolas_get("nz_parcels", start = "2020-01-01"))
   expect_false(routed)
+})
+
+test_that("eolas_get strips spurious start on non-temporal geo and auto-routes", {
+  routed <- FALSE
+
+  set_test_key()
+  local_mocked_bindings(
+    .eolas_info_cached = function(name, base_url = EOLAS_BASE_URL) {
+      parse_geo_meta()
+    },
+    eolas_get_local = function(name, ...) {
+      routed <<- TRUE
+      eolas:::new_eolas_dataset(data.frame(id = 1L), name = name)
+    },
+    eolas_http_perform = function(req) {
+      stop("live path should not run", call. = FALSE)
+    },
+    .package = "eolas"
+  )
+
+  expect_warning(
+    eolas_get("nz_parcels", start = "2020-01-01"),
+    "start/end ignored"
+  )
+  expect_true(routed)
 })

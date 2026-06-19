@@ -172,6 +172,39 @@
   tryCatch(.eolas_info_cached(name, base_url = base_url), error = function(e) NULL)
 }
 
+# Columns recognised by the API for /data?start=&end= filtering (streaming.R).
+.EOLAS_DATE_FILTER_CANDIDATES <- c(
+  "date", "time_frame", "open_date", "awarded_date", "start_date"
+)
+
+#' @keywords internal
+.eolas_date_filter_column <- function(meta_info) {
+  if (is.null(meta_info) || !is.data.frame(meta_info) || nrow(meta_info) < 1L) {
+    return(NULL)
+  }
+  explicit <- .eolas_dataset_field(meta_info, "date_filter_column", fallback = NA_character_)
+  if (!is.na(explicit) && nzchar(as.character(explicit))) return(as.character(explicit))
+  if (!"columns" %in% names(meta_info)) return(NULL)
+  col_df <- meta_info$columns[[1]]
+  if (is.null(col_df) || !is.data.frame(col_df) || nrow(col_df) < 1L) return(NULL)
+  hit <- .EOLAS_DATE_FILTER_CANDIDATES[.EOLAS_DATE_FILTER_CANDIDATES %in% col_df$name]
+  if (length(hit)) hit[[1]] else NULL
+}
+
+#' @keywords internal
+.eolas_resolve_date_bounds <- function(meta_info, start, end) {
+  if (is.null(start) && is.null(end)) {
+    return(list(start = NULL, end = NULL, stripped = FALSE))
+  }
+  if (is.null(meta_info)) {
+    return(list(start = start, end = end, stripped = FALSE))
+  }
+  if (!is.null(.eolas_date_filter_column(meta_info))) {
+    return(list(start = start, end = end, stripped = FALSE))
+  }
+  list(start = NULL, end = NULL, stripped = TRUE)
+}
+
 # Safe scalar read from a one-row eolas_info tibble.  Using `$` on a tibble
 # warns when the column is absent (e.g. API has `name` but not `table`).
 .eolas_dataset_field <- function(meta, field, fallback = NULL) {
