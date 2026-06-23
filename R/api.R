@@ -475,3 +475,102 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   }
   result
 }
+
+
+#' Download a dataset via the live API
+#'
+#' Streams `GET /v1/datasets/{name}/data` to a file. Works for **all**
+#' datasets, including OECD and other licence-restricted tables where bulk
+#' export is unavailable (e.g. `"nz_cpi"`). For whole-dataset pulls on very
+#' large or geospatial tables, prefer [eolas_download_bulk()] when bulk export
+#' is permitted.
+#'
+#' @param name Dataset identifier, e.g. `"nz_cpi"`.
+#' @param path Where to write the file (required).
+#' @param format `"csv"` (default), `"parquet"`, `"arrow"`, or `"json"`.
+#' @param start ISO date lower bound. Optional.
+#' @param end ISO date upper bound. Optional.
+#' @param limit Max rows. `NULL` (default) requests the full dataset (subject
+#'   to plan caps).
+#' @param progress Download progress bar control (`"download"` phase only).
+#'   `NULL` auto-detects in interactive sessions; suppressed by
+#'   `EOLAS_NO_PROGRESS=1`.
+#' @param base_url Override the API base URL (useful for testing).
+#' @return Invisibly the normalised output path.
+#' @export
+#' @examples
+#' \dontrun{
+#' eolas_key("your_key")
+#' eolas_download("nz_cpi", path = "nz_cpi.csv")
+#' eolas_download("nz_cpi", path = "nz_cpi.parquet", format = "parquet")
+#' }
+eolas_download <- function(name,
+                         path,
+                         format = "csv",
+                         start = NULL,
+                         end = NULL,
+                         limit = NULL,
+                         progress = NULL,
+                         base_url = EOLAS_BASE_URL) {
+  if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
+    stop("name must be a non-empty string", call. = FALSE)
+  }
+  if (missing(path) || !is.character(path) || length(path) != 1L || !nzchar(path)) {
+    stop("path must be a non-empty file path", call. = FALSE)
+  }
+
+  fmt <- tolower(format)
+  allowed <- c("csv", "parquet", "arrow", "json")
+  if (!fmt %in% allowed) {
+    stop(
+      "Unknown format: ", sQuote(format),
+      ". Expected one of: ", paste(allowed, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  params <- list(format = fmt)
+  if (!is.null(start)) params$start <- start
+  if (!is.null(end)) params$end <- end
+  if (!is.null(limit)) {
+    resolved <- .eolas_resolve_fetch_limit(limit)
+    params$limit <- resolved$fetch_limit
+  } else if (is.null(start) && is.null(end)) {
+    params$limit <- 0L
+  } else {
+    params$limit <- 0L
+  }
+
+  out_path <- normalizePath(path.expand(path), mustWork = FALSE)
+  parent <- dirname(out_path)
+  if (!dir.exists(parent)) dir.create(parent, recursive = TRUE, showWarnings = FALSE)
+
+  key <- eolas_get_key_internal()
+  url <- paste0(base_url, "/v1/datasets/", name, "/data")
+  req <- httr2::request(url) |>
+    httr2::req_headers("X-API-Key" = key) |>
+    httr2::req_user_agent(.eolas_user_agent()) |>
+    httr2::req_url_query(!!!params) |>
+    httr2::req_error(is_error = \(r) FALSE)
+
+  show_bar <- .eolas_resolve_progress(progress, "download")
+  resp <- httr2::req_perform_connection(req)
+  eolas_check_status(resp)
+
+  total <- .eolas_resp_content_length(resp)
+  bytes_written <- .eolas_stream_to_file(
+    resp,
+    dest_path = out_path,
+    total_bytes = total,
+    label = paste0("Downloading ", basename(out_path)),
+    show_bar = show_bar
+  )
+  if (bytes_written <= 0L) {
+    stop(
+      "Live download for ", sQuote(name), " returned an empty body (0 bytes). ",
+      "Check plan row caps or try a smaller date range.",
+      call. = FALSE
+    )
+  }
+  invisible(out_path)
+}

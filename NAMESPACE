@@ -3,6 +3,7 @@
 S3method(print,eolas_dataset)
 export(eolas_cache_clear)
 export(eolas_column_label)
+export(eolas_download)
 export(eolas_download_bulk)
 export(eolas_get)
 export(eolas_get_acc)
