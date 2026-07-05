@@ -8,7 +8,8 @@ EOLAS_BASE_URL <- "https://api.eolas.fyi"
 
 .eolas_user_agent <- function() {
   ver <- tryCatch(as.character(utils::packageVersion("eolas")),
-                  error = function(e) "1.0.0")
+    error = function(e) "1.0.0"
+  )
   # Explicit UA: good API-client hygiene + insulation against the Cloudflare
   # edge tightening bot rules (raw default UAs can be 403'd; custom always OK).
   paste0("eolas-r/", ver, " (r; +https://eolas.fyi)")
@@ -18,9 +19,37 @@ eolas_http_perform <- function(req) {
   httr2::req_perform(req)
 }
 
+# Sanitise an error `detail` before it reaches cli_abort. A CF 5xx / origin error
+# often delivers a multi-KB HTML page as the body; resp_body_string() then puts the
+# whole page into `detail`, and cli_abort dumps thousands of chars of HTML at the
+# user. Detect an HTML/Cloudflare body and replace it with a short message (+ cf-ray
+# when present); cap any other runaway detail. Mirrors the Python client's
+# _sanitize_error_detail. (2026-07-05 client audit EH-8.)
+.eolas_sanitize_detail <- function(detail, resp) {
+  if (!is.character(detail) || length(detail) != 1L || is.na(detail)) {
+    return("Unknown error")
+  }
+  looks_html <- grepl("<html|<!doctype|<head|cloudflare|just a moment|_incapsula",
+    detail,
+    ignore.case = TRUE
+  )
+  if (looks_html) {
+    cfray <- httr2::resp_header(resp, "cf-ray")
+    msg <- "upstream returned an HTML error page (likely a Cloudflare or gateway error) -- retry"
+    if (!is.null(cfray)) msg <- paste0(msg, " (cf-ray ", cfray, ")")
+    return(msg)
+  }
+  if (nchar(detail) > 500L) {
+    return(paste0(substr(detail, 1L, 500L), "... (truncated)"))
+  }
+  detail
+}
+
 eolas_check_status <- function(resp) {
   status <- httr2::resp_status(resp)
-  if (status == 200L) return(invisible(resp))
+  if (status == 200L) {
+    return(invisible(resp))
+  }
 
   # Double-tryCatch: first try JSON, then plain string, then synthesise a
   # message from the status code alone. The innermost fallback is critical for
@@ -29,15 +58,19 @@ eolas_check_status <- function(resp) {
   # producing a confusing internal traceback instead of a clear "retry" message.
   body <- tryCatch(
     httr2::resp_body_json(resp),
-    error = function(e) tryCatch(
-      list(detail = httr2::resp_body_string(resp)),
-      error = function(e2) list(detail = sprintf(
-        "Empty response body (status %d). Likely CF gateway or origin timeout -- retry.",
-        httr2::resp_status(resp)
-      ))
-    )
+    error = function(e) {
+      tryCatch(
+        list(detail = httr2::resp_body_string(resp)),
+        error = function(e2) {
+          list(detail = sprintf(
+            "Empty response body (status %d). Likely CF gateway or origin timeout -- retry.",
+            httr2::resp_status(resp)
+          ))
+        }
+      )
+    }
   )
-  detail <- body$detail %||% "Unknown error"
+  detail <- .eolas_sanitize_detail(body$detail %||% "Unknown error", resp)
 
   if (status == 401L) {
     cli::cli_abort(c(
@@ -70,7 +103,8 @@ eolas_check_status <- function(resp) {
       msg <- paste0(msg, " (Blocked at the Cloudflare edge -- cf-ray ", cfray, ".)")
     }
     cli::cli_abort(paste0(msg, " Upgrade for higher limits: https://eolas.fyi/pricing"),
-                   call. = FALSE)
+      call. = FALSE
+    )
   }
   if (status == 404L) cli::cli_abort("Not found: {detail}", call. = FALSE)
   cli::cli_abort("API error (HTTP {status}): {detail}", call. = FALSE)
@@ -82,6 +116,10 @@ eolas_http_get <- function(path, ..., base_url = EOLAS_BASE_URL) {
   req <- httr2::request(url) |>
     httr2::req_headers("X-API-Key" = key) |>
     httr2::req_user_agent(.eolas_user_agent()) |>
+    # Total-request timeout so a black-holed connection can't hang the caller forever
+    # (2026-07-05 client audit EH-1). 120s is ample for JSON metadata/data calls; the
+    # bulk streaming builders set their own, larger budget.
+    httr2::req_timeout(120) |>
     httr2::req_url_query(...) |>
     httr2::req_error(is_error = \(r) FALSE)
   resp <- eolas_http_perform(req)

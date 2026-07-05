@@ -55,9 +55,10 @@ from Cloudflare's edge cache in milliseconds.
 \section{Freshness}{
 
 \code{freshness = "auto"} (the default) omits the query parameter so the server
-redirects to the right level for your plan -- Free accounts get the latest
-monthly snapshot; Pro accounts get the current Iceberg snapshot. Pass
-\code{"monthly"} or \code{"current"} to override explicitly.
+picks the right level for your plan -- Pro accounts get the current Iceberg
+snapshot. Pass \code{"monthly"} or \code{"current"} to override explicitly. Bulk
+download is a Pro/Enterprise feature; Free keys receive HTTP 402 (query the
+dataset with \code{eolas_get()} / \code{eolas_download()} instead).
 }
 
 \section{Formats}{

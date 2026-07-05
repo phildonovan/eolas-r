@@ -22,34 +22,46 @@
   req <- httr2::request(url) |>
     httr2::req_headers("X-API-Key" = key) |>
     httr2::req_user_agent(.eolas_user_agent()) |>
+    # Total-request timeout so a black-holed connection can't hang a sync forever. (audit EH-1)
+    httr2::req_timeout(300) |>
     httr2::req_url_query(since_seq = since_seq, limit = limit, format = "parquet") |>
     httr2::req_error(is_error = \(r) FALSE)
   resp <- eolas_http_perform(req)
   status <- httr2::resp_status(resp)
-  if (status == 200L) return(resp)
+  if (status == 200L) {
+    return(resp)
+  }
   detail <- tryCatch(httr2::resp_body_json(resp)$detail %||% "", error = \(e) "")
   if (status == 402L) {
-    cli::cli_abort(c("Incremental sync requires a Pro plan.",
-                     i = if (nzchar(detail)) detail else "See https://eolas.fyi/pricing."),
-                   class = "eolas_changes_upgrade_required")
+    cli::cli_abort(
+      c("Incremental sync requires a Pro plan.",
+        i = if (nzchar(detail)) detail else "See https://eolas.fyi/pricing."
+      ),
+      class = "eolas_changes_upgrade_required"
+    )
   }
   if (status == 403L) {
     if (grepl("licence", tolower(detail))) {
       cli::cli_abort(c("This dataset's licence prohibits export.", i = detail),
-                     class = "eolas_changes_licence_restricted")
+        class = "eolas_changes_licence_restricted"
+      )
     }
     cli::cli_abort(if (nzchar(detail)) detail else "API key is inactive.",
-                   class = "eolas_auth_error")
+      class = "eolas_auth_error"
+    )
   }
   if (status == 410L) {
     body <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
     min_seq <- suppressWarnings(as.numeric(body$min_available_seq %||% 0))
-    cli::cli_abort(c("Sync watermark expired -- the requested changes are no longer retained.",
-                     i = "Re-baselining from a fresh bulk snapshot."),
-                   class = "eolas_watermark_expired",
-                   min_available_seq = if (is.na(min_seq)) 0 else min_seq)
+    cli::cli_abort(
+      c("Sync watermark expired -- the requested changes are no longer retained.",
+        i = "Re-baselining from a fresh bulk snapshot."
+      ),
+      class = "eolas_watermark_expired",
+      min_available_seq = if (is.na(min_seq)) 0 else min_seq
+    )
   }
-  eolas_check_status(resp)  # generic handling for anything else
+  eolas_check_status(resp) # generic handling for anything else
   resp
 }
 
@@ -67,7 +79,9 @@
 # Single tail page -> X-Eolas-Seq-High (the current feed head). Anchors the cold-start watermark.
 .eolas_fetch_seq_high <- function(name, since_seq = .EOLAS_SEQ_MAX, base_url = EOLAS_BASE_URL) {
   resp <- tryCatch(.eolas_changes_get(name, since_seq, 1L, base_url = base_url), error = \(e) NULL)
-  if (is.null(resp)) return(0)
+  if (is.null(resp)) {
+    return(0)
+  }
   hi <- suppressWarnings(as.numeric(httr2::resp_header(resp, "X-Eolas-Seq-High") %||% "0"))
   if (is.na(hi)) 0 else hi
 }
@@ -83,11 +97,14 @@
   repeat {
     resp <- .eolas_changes_get(name, current_seq, .EOLAS_CHANGES_PAGE_LIMIT, base_url = base_url)
     seq_high <- suppressWarnings(as.numeric(httr2::resp_header(resp, "X-Eolas-Seq-High") %||%
-                                            as.character(current_seq)))
+      as.character(current_seq)))
     row_count <- suppressWarnings(as.integer(httr2::resp_header(resp, "X-Eolas-Row-Count") %||% "0"))
     trunc_raw <- httr2::resp_header(resp, "X-Eolas-Truncated")
-    truncated <- if (!is.null(trunc_raw)) tolower(trunc_raw) == "true"
-                 else isTRUE(row_count >= .EOLAS_CHANGES_PAGE_LIMIT)
+    truncated <- if (!is.null(trunc_raw)) {
+      tolower(trunc_raw) == "true"
+    } else {
+      isTRUE(row_count >= .EOLAS_CHANGES_PAGE_LIMIT)
+    }
     if (isTRUE(row_count > 0)) {
       body <- httr2::resp_body_raw(resp)
       if (length(body) > 0) pages[[length(pages) + 1L]] <- .eolas_read_parquet_raw(body)
@@ -145,7 +162,8 @@ eolas_sync_changes <- function(name, path, format = "parquet", progress = NULL,
   fmt <- tolower(format)
   if (fmt != "parquet") {
     cli::cli_abort(c("{.fn eolas_sync_changes} only supports {.val parquet}.",
-                     x = "Got format = {.val {format}}."))
+      x = "Got format = {.val {format}}."
+    ))
   }
   out_path <- path.expand(path)
   sidecar_path <- paste0(out_path, ".eolas-meta.json")
@@ -166,17 +184,27 @@ eolas_sync_changes <- function(name, path, format = "parquet", progress = NULL,
 
   do_baseline <- function(reason) {
     cli::cli_alert_info("{.field {name}}: {reason} -- baselining from a full bulk snapshot.")
-    bulk <- eolas_sync_bulk(name, path = out_path, format = fmt, freshness = "current",
-                            progress = progress, force = force, base_url = base_url)
+    bulk <- eolas_sync_bulk(name,
+      path = out_path, format = fmt, freshness = "current",
+      progress = progress, force = force, base_url = base_url
+    )
     high <- .eolas_fetch_seq_high(name, base_url = base_url)
-    .eolas_write_changelog_sidecar(sidecar_path, name, fmt, pk_columns, current_state_filter,
-                                   bulk$current_snapshot_id, high)
-    list(status = "downloaded", sync_mode = "changelog", previous_seq = NULL, current_seq = high,
-         ops_applied = 0L, path = out_path, current_snapshot_id = bulk$current_snapshot_id)
+    .eolas_write_changelog_sidecar(
+      sidecar_path, name, fmt, pk_columns, current_state_filter,
+      bulk$current_snapshot_id, high
+    )
+    list(
+      status = "downloaded", sync_mode = "changelog", previous_seq = NULL, current_seq = high,
+      ops_applied = 0L, path = out_path, current_snapshot_id = bulk$current_snapshot_id
+    )
   }
 
-  if (isTRUE(force)) return(do_baseline("force refresh"))
-  if (needs_baseline) return(do_baseline("cold start"))
+  if (isTRUE(force)) {
+    return(do_baseline("force refresh"))
+  }
+  if (needs_baseline) {
+    return(do_baseline("cold start"))
+  }
 
   prev_watermark <- as.numeric(sidecar$watermark_seq %||% 0)
   baseline_snapshot_id <- sidecar$baseline_snapshot_id %||% ""
@@ -198,14 +226,18 @@ eolas_sync_changes <- function(name, path, format = "parquet", progress = NULL,
 
   changes <- fetched$changes
   if (nrow(changes) == 0) {
-    return(list(status = "unchanged", sync_mode = "changelog", previous_seq = prev_watermark,
-                current_seq = prev_watermark, ops_applied = 0L, path = out_path,
-                current_snapshot_id = baseline_snapshot_id))
+    return(list(
+      status = "unchanged", sync_mode = "changelog", previous_seq = prev_watermark,
+      current_seq = prev_watermark, ops_applied = 0L, path = out_path,
+      current_snapshot_id = baseline_snapshot_id
+    ))
   }
 
   local_df <- if (file.exists(out_path)) as.data.frame(arrow::read_parquet(out_path)) else data.frame()
-  merged <- eolas_merge_changes(local_df, changes, pk_columns = pk_columns,
-                                current_state_filter = current_state_filter)
+  merged <- eolas_merge_changes(local_df, changes,
+    pk_columns = pk_columns,
+    current_state_filter = current_state_filter
+  )
 
   # Atomic write: write to a temp sibling then rename over the target.
   tmp <- paste0(out_path, ".eolas-tmp-", paste(sample(c(0:9, letters[1:6]), 8, TRUE), collapse = ""))
@@ -213,15 +245,21 @@ eolas_sync_changes <- function(name, path, format = "parquet", progress = NULL,
   on.exit(if (!ok && file.exists(tmp)) unlink(tmp), add = TRUE)
   arrow::write_parquet(merged, tmp)
   if (!file.rename(tmp, out_path)) {
-    file.copy(tmp, out_path, overwrite = TRUE); unlink(tmp)
+    file.copy(tmp, out_path, overwrite = TRUE)
+    unlink(tmp)
   }
   ok <- TRUE
 
-  .eolas_write_changelog_sidecar(sidecar_path, name, fmt, pk_columns, current_state_filter,
-                                 baseline_snapshot_id, fetched$final_seq)
+  .eolas_write_changelog_sidecar(
+    sidecar_path, name, fmt, pk_columns, current_state_filter,
+    baseline_snapshot_id, fetched$final_seq
+  )
   cli::cli_alert_success(
-    "Applied {nrow(changes)} change{?s} to {.path {out_path}} (seq {prev_watermark} -> {fetched$final_seq}).")
-  list(status = "updated", sync_mode = "changelog", previous_seq = prev_watermark,
-       current_seq = fetched$final_seq, ops_applied = nrow(changes), path = out_path,
-       current_snapshot_id = baseline_snapshot_id)
+    "Applied {nrow(changes)} change{?s} to {.path {out_path}} (seq {prev_watermark} -> {fetched$final_seq})."
+  )
+  list(
+    status = "updated", sync_mode = "changelog", previous_seq = prev_watermark,
+    current_seq = fetched$final_seq, ops_applied = nrow(changes), path = out_path,
+    current_snapshot_id = baseline_snapshot_id
+  )
 }

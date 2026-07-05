@@ -17,7 +17,7 @@
 eolas_list <- function(source = NULL, base_url = EOLAS_BASE_URL) {
   resp <- eolas_http_get("/v1/datasets", base_url = base_url)
   body <- httr2::resp_body_json(resp, simplifyVector = TRUE)
-  df   <- as.data.frame(body$datasets %||% body)
+  df <- as.data.frame(body$datasets %||% body)
 
   if (!is.null(source)) {
     df <- df[!is.na(df$source) & df$source == source, ]
@@ -29,20 +29,24 @@ eolas_list <- function(source = NULL, base_url = EOLAS_BASE_URL) {
 
 
 .eolas_search_aliases <- list(
-  hlfs    = c("hlfs", "household labour", "labour force survey", "labour force",
-              "labour market", "unemployment rate"),
-  ocr     = c("ocr", "official cash rate", "cash rate"),
-  cpi     = c("cpi", "consumer price", "inflation", "prices"),
-  kapiti  = c("kapiti", "kcdc_", "kapiti coast"),
+  hlfs = c(
+    "hlfs", "household labour", "labour force survey", "labour force",
+    "labour market", "unemployment rate"
+  ),
+  ocr = c("ocr", "official cash rate", "cash rate"),
+  cpi = c("cpi", "consumer price", "inflation", "prices"),
+  kapiti = c("kapiti", "kcdc_", "kapiti coast"),
   porirua = c("porirua", "pcc_")
 )
 
 .eolas_search_name_only <- c("hlfs", "kapiti", "porirua")
 
 .eolas_search_rank <- list(
-  cpi  = c(rbnz_m1_prices = 0L, rbnz_m1_prices_longrun = 1L, nz_cpi = 2L),
-  hlfs = c(nz_unemployment = 0L, rbnz_m9_labour_market = 1L,
-           poppr_lab_national = 2L, poppr_lab_national_chars = 3L)
+  cpi = c(rbnz_m1_prices = 0L, rbnz_m1_prices_longrun = 1L, nz_cpi = 2L),
+  hlfs = c(
+    nz_unemployment = 0L, rbnz_m9_labour_market = 1L,
+    poppr_lab_national = 2L, poppr_lab_national_chars = 3L
+  )
 )
 
 .eolas_cpi_guidance <- function() {
@@ -54,16 +58,22 @@ eolas_list <- function(source = NULL, base_url = EOLAS_BASE_URL) {
 
 .eolas_search_terms <- function(query) {
   q <- tolower(trimws(query))
-  if (!nzchar(q)) return(character(0))
+  if (!nzchar(q)) {
+    return(character(0))
+  }
   aliases <- .eolas_search_aliases[[q]]
   if (!is.null(aliases)) aliases else q
 }
 
 .eolas_search_mask <- function(df, needles, search_description = TRUE) {
-  if (!nrow(df) || !length(needles)) return(rep(FALSE, nrow(df)))
+  if (!nrow(df) || !length(needles)) {
+    return(rep(FALSE, nrow(df)))
+  }
   cols <- intersect(c("name", "title"), names(df))
   if (search_description) cols <- c(cols, intersect("description", names(df)))
-  if (!length(cols)) return(rep(FALSE, nrow(df)))
+  if (!length(cols)) {
+    return(rep(FALSE, nrow(df)))
+  }
   mask <- rep(FALSE, nrow(df))
   for (col in cols) {
     hay <- tolower(ifelse(is.na(df[[col]]), "", as.character(df[[col]])))
@@ -135,7 +145,9 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 # JSON-path user is told the exact fix + the measured win) but never aborts --
 # `arrow` stays in Suggests so install never breaks on a constrained box.
 .eolas_nag_arrow_once <- function() {
-  if (isTRUE(.eolas_runtime$arrow_nagged)) return(invisible())
+  if (isTRUE(.eolas_runtime$arrow_nagged)) {
+    return(invisible())
+  }
   .eolas_runtime$arrow_nagged <- TRUE
   cli::cli_alert_info(c(
     "Using the slower JSON transport.",
@@ -151,14 +163,18 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
     return(data.frame(stringsAsFactors = FALSE))
   }
   parts <- lapply(rows, function(row) {
-    if (!is.list(row)) return(NULL)
+    if (!is.list(row)) {
+      return(NULL)
+    }
     fixed <- lapply(row, function(v) {
       if (is.null(v) || length(v) == 0L) NA else v
     })
     as.data.frame(fixed, stringsAsFactors = FALSE)
   })
   parts <- Filter(Negate(is.null), parts)
-  if (length(parts) == 0L) return(data.frame(stringsAsFactors = FALSE))
+  if (length(parts) == 0L) {
+    return(data.frame(stringsAsFactors = FALSE))
+  }
   do.call(rbind, parts)
 }
 
@@ -173,8 +189,10 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
   if (requireNamespace("arrow", quietly = TRUE) && !isTRUE(envelope)) {
     if (!isFALSE(.eolas_runtime$arrow_supported)) {
       resp <- tryCatch(
-        do.call(eolas_http_get,
-          c(list(path, base_url = base_url, format = "arrow"), params)),
+        do.call(
+          eolas_http_get,
+          c(list(path, base_url = base_url, format = "arrow"), params)
+        ),
         error = function(e) NULL
       )
       ctype <- if (is.null(resp)) "" else (httr2::resp_content_type(resp) %||% "")
@@ -195,8 +213,10 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
     .eolas_nag_arrow_once()
   }
 
-  resp <- do.call(eolas_http_get,
-    c(list(path, base_url = base_url), params))
+  resp <- do.call(
+    eolas_http_get,
+    c(list(path, base_url = base_url), params)
+  )
   body <- httr2::resp_body_json(resp, simplifyVector = FALSE)
   rows <- body$data %||% body
   sources <- if (is.list(body) && !is.null(body$data_sources)) body$data_sources else NULL
@@ -262,13 +282,13 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' eolas_key("your_key")
 #' df <- eolas_get("nz_cpi", start = "2020-01-01")
 #' library(ggplot2)
-#' ggplot(df, aes(date, value)) + geom_line()
+#' ggplot(df, aes(date, value)) +
+#'   geom_line()
 #' }
 eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
-                   as_sf = NULL, as_arrow = FALSE, meta = TRUE,
-                   envelope = FALSE, progress = NULL, force = FALSE,
-                   base_url = EOLAS_BASE_URL, ...) {
-
+                      as_sf = NULL, as_arrow = FALSE, meta = TRUE,
+                      envelope = FALSE, progress = NULL, force = FALSE,
+                      base_url = EOLAS_BASE_URL, ...) {
   # ---- as_arrow / as_sf conflict guard ----------------------------------------
   if (isTRUE(as_arrow) && isTRUE(as_sf)) {
     stop(
@@ -306,25 +326,27 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
 
   # Whole-dataset pull on large/geo tables -> bulk cache (mirrors Python get()).
   if (is.null(start) && is.null(end) && is.null(limit) &&
-      !isTRUE(envelope) && !isTRUE(as_arrow)) {
+    !isTRUE(envelope) && !isTRUE(as_arrow)) {
     routed <- .eolas_maybe_route_get_local(
       name = name, as_sf = as_sf, meta = meta, progress = progress,
       force = force, base_url = base_url, ...
     )
-    if (!is.null(routed)) return(routed)
+    if (!is.null(routed)) {
+      return(routed)
+    }
   }
 
   # ---- live path ---------------------------------------------------------------
   params <- list()
   if (!is.null(start)) params$start <- start
-  if (!is.null(end))   params$end   <- end
+  if (!is.null(end)) params$end <- end
 
   meta_info <- .eolas_fetch_meta_info(name, base_url, meta)
 
   # Positive limits on large/geo datasets must reach the API -- limit=0 triggers 413.
   if (!is.null(limits$user) && limits$user > 0L &&
-      is.null(start) && is.null(end) &&
-      !is.null(meta_info) && .eolas_live_pull_blocked(meta_info)) {
+    is.null(start) && is.null(end) &&
+    !is.null(meta_info) && .eolas_live_pull_blocked(meta_info)) {
     limits$fetch <- limits$user
   }
   params$limit <- limits$fetch
@@ -380,15 +402,17 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   if (!requireNamespace("sf", quietly = TRUE)) {
     if (force) {
       stop("The 'sf' package is required to return geospatial datasets as sf ",
-           "objects. Install with: install.packages('sf')", call. = FALSE)
+        "objects. Install with: install.packages('sf')",
+        call. = FALSE
+      )
     }
     return(df)
   }
   # Preserve eolas_dataset-style metadata so attrs survive the conversion
-  was_eolas  <- inherits(df, "eolas_dataset")
-  vs_name    <- attr(df, "eolas_name")
-  vs_source  <- attr(df, "eolas_source")
-  vs_meta    <- attr(df, "eolas_meta")
+  was_eolas <- inherits(df, "eolas_dataset")
+  vs_name <- attr(df, "eolas_name")
+  vs_source <- attr(df, "eolas_source")
+  vs_meta <- attr(df, "eolas_meta")
   vs_columns <- attr(df, "eolas_columns")
   # Tibble backing -- sf::st_as_sf doesn't reliably drop the WKT column when
   # called on a class-extended data frame (e.g. eolas_dataset).
@@ -404,10 +428,10 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   # "OGR: Unsupported geometry type". Parse defensively: blank/NA/sentinel
   # values and any individually-unparseable WKT become EMPTY geometry, every
   # attribute row is preserved, and the caller gets a warning with the count.
-  raw   <- as.character(plain[["geometry_wkt"]])
+  raw <- as.character(plain[["geometry_wkt"]])
   trimmed <- trimws(raw)
   blank <- is.na(raw) | !nzchar(trimmed) |
-           toupper(trimmed) %in% c("NA", "NONE", "NULL", "NAN")
+    toupper(trimmed) %in% c("NA", "NONE", "NULL", "NAN")
 
   # Cheap shape screen: a WKT value must start with an OGC/ISO geometry
   # keyword (optionally SRID-prefixed). Values that fail this are not WKT at
@@ -417,27 +441,30 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
     "^(SRID=\\d+\\s*;\\s*)?(POINT|LINESTRING|POLYGON|MULTIPOINT|",
     "MULTILINESTRING|MULTIPOLYGON|GEOMETRYCOLLECTION|CIRCULARSTRING|",
     "COMPOUNDCURVE|CURVEPOLYGON|MULTICURVE|MULTISURFACE|",
-    "POLYHEDRALSURFACE|TIN|TRIANGLE)\\b")
+    "POLYHEDRALSURFACE|TIN|TRIANGLE)\\b"
+  )
   not_wkt <- !blank & !grepl(wkt_kw, toupper(trimmed))
 
   geoms <- vector("list", length(raw))
-  bad   <- not_wkt
-  idx   <- which(!blank & !not_wkt)
+  bad <- not_wkt
+  idx <- which(!blank & !not_wkt)
 
   # Fast path: vectorised parse of the plausibly-WKT rows. Succeeds for the
   # common case (only problem rows were blank/non-WKT), so we pay the per-row
   # cost only when there is genuinely malformed WKT among them (e.g. a
   # server-side truncated polygon).
-  parsed <- if (length(idx))
+  parsed <- if (length(idx)) {
     tryCatch(sf::st_as_sfc(raw[idx], crs = 4326), error = function(e) NULL)
-  else
+  } else {
     sf::st_sfc(crs = 4326)
+  }
 
   if (length(idx) && is.null(parsed)) {
     for (j in seq_along(idx)) {
       i <- idx[j]
       g <- tryCatch(sf::st_as_sfc(raw[i], crs = 4326),
-                     error = function(e) NULL)
+        error = function(e) NULL
+      )
       if (is.null(g)) bad[i] <- TRUE else geoms[[i]] <- g[[1]]
     }
   } else if (length(idx)) {
@@ -446,15 +473,15 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
 
   empty_i <- which(blank | bad)
   if (length(empty_i)) {
-    eg <- sf::st_geometrycollection()  # EMPTY; type-agnostic placeholder
+    eg <- sf::st_geometrycollection() # EMPTY; type-agnostic placeholder
     for (i in empty_i) geoms[[i]] <- eg
   }
 
   n_blank <- sum(blank)
-  n_bad   <- sum(bad)
+  n_bad <- sum(bad)
   if (n_blank || n_bad) {
     n_missing <- n_blank + n_bad
-    n_total   <- length(raw)
+    n_total <- length(raw)
     cli::cli_warn(c(
       "{.val {n_missing}} of {.val {n_total}} row(s) had no usable geometry ({.val {n_blank}} empty/null, {.val {n_bad}} unparseable WKT) and were returned with {.strong EMPTY} geometry.",
       "i" = "Filter with {.code !sf::st_is_empty(x)} if needed."
@@ -466,9 +493,9 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   result <- .eolas_sf_as_tibble(
     sf::st_sf(plain, geometry = sf::st_sfc(geoms, crs = 4326))
   )
-  if (!is.null(vs_name))    attr(result, "eolas_name")    <- vs_name
-  if (!is.null(vs_source))  attr(result, "eolas_source")  <- vs_source
-  if (!is.null(vs_meta))    attr(result, "eolas_meta")    <- vs_meta
+  if (!is.null(vs_name)) attr(result, "eolas_name") <- vs_name
+  if (!is.null(vs_source)) attr(result, "eolas_source") <- vs_source
+  if (!is.null(vs_meta)) attr(result, "eolas_meta") <- vs_meta
   if (!is.null(vs_columns)) attr(result, "eolas_columns") <- vs_columns
   if (was_eolas) {
     result <- structure(result, class = c("eolas_dataset", class(result)))
@@ -505,13 +532,13 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
 #' eolas_download("nz_cpi", path = "nz_cpi.parquet", format = "parquet")
 #' }
 eolas_download <- function(name,
-                         path,
-                         format = "csv",
-                         start = NULL,
-                         end = NULL,
-                         limit = NULL,
-                         progress = NULL,
-                         base_url = EOLAS_BASE_URL) {
+                           path,
+                           format = "csv",
+                           start = NULL,
+                           end = NULL,
+                           limit = NULL,
+                           progress = NULL,
+                           base_url = EOLAS_BASE_URL) {
   if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
     stop("name must be a non-empty string", call. = FALSE)
   }
@@ -550,6 +577,9 @@ eolas_download <- function(name,
   req <- httr2::request(url) |>
     httr2::req_headers("X-API-Key" = key) |>
     httr2::req_user_agent(.eolas_user_agent()) |>
+    # Generous total-request timeout for a streaming download so a black-holed
+    # connection can't hang forever, while still allowing a large file. (audit EH-1)
+    httr2::req_timeout(1800) |>
     httr2::req_url_query(!!!params) |>
     httr2::req_error(is_error = \(r) FALSE)
 
