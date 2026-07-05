@@ -16,3 +16,10 @@ Hotfix release addressing issues found in the 2026-07-05 client-library audit.
   instead of dumping the multi-kilobyte HTML body into the error.
 * **`eolas_download_bulk()` rejects unknown arguments.** A misspelled argument (e.g.
   `dest_dir=` instead of `path=`) now errors instead of being silently ignored.
+* **Corrected bulk-download docs.** The `freshness` help and the 402 error message
+  no longer claim Free plans get a monthly bulk snapshot — bulk download is a
+  Pro/Enterprise feature and Free keys receive HTTP 402 (query datasets with
+  `eolas_get()` instead).
+* **Honest install note.** The README no longer promises "no compiler needed" on
+  Linux — `arrow`/`sf` may compile from source; documents the Posit Package
+  Manager / r2u binary path.

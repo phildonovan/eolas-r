@@ -13,10 +13,26 @@ _Coverage is New Zealand + OECD today. Australian sources are on the roadmap —
 
 ## Installation
 
-From [r-universe](https://phildonovan.r-universe.dev) (recommended on Linux — pre-built binaries, no compiler needed):
+From [r-universe](https://phildonovan.r-universe.dev) (recommended):
 
 ```r
 install.packages("eolas", repos = c("https://phildonovan.r-universe.dev", "https://cloud.r-project.org"))
+```
+
+r-universe ships a pre-built binary of `eolas` itself. On Linux its dependencies
+(notably `arrow` and `sf`) may still **compile from source** — potentially several
+minutes, and a C/C++ toolchain is required. To get binary dependencies too, point
+R at [Posit Public Package Manager](https://packagemanager.posit.co) (or use
+[`r2u`](https://eddelbuettel.github.io/r2u/) / your distro's `r-cran-*` packages)
+before installing, e.g.:
+
+```r
+options(repos = c(
+  eolas = "https://phildonovan.r-universe.dev",
+  P3M   = "https://packagemanager.posit.co/cran/__linux__/jammy/latest",
+  CRAN  = "https://cloud.r-project.org"
+))
+install.packages("eolas")
 ```
 
 Or from GitHub (source build):

@@ -256,9 +256,10 @@
 #'
 #' @section Freshness:
 #' `freshness = "auto"` (the default) omits the query parameter so the server
-#' redirects to the right level for your plan -- Free accounts get the latest
-#' monthly snapshot; Pro accounts get the current Iceberg snapshot. Pass
-#' `"monthly"` or `"current"` to override explicitly.
+#' picks the right level for your plan -- Pro accounts get the current Iceberg
+#' snapshot. Pass `"monthly"` or `"current"` to override explicitly. Bulk
+#' download is a Pro/Enterprise feature; Free keys receive HTTP 402 (query the
+#' dataset with `eolas_get()` / `eolas_download()` instead).
 #'
 #' @section Formats:
 #' \describe{
@@ -395,8 +396,8 @@ eolas_download_bulk <- function(name,
   if (status == 402L) {
     body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
     detail <- body_j$detail %||% paste0(
-      "Fresh bulk downloads are a Pro feature. Free accounts get the latest ",
-      "monthly snapshot -- see https://eolas.fyi/pricing."
+      "Bulk downloads are a Pro feature. Free accounts query datasets via the ",
+      "live API (eolas_get) -- upgrade at https://eolas.fyi/pricing."
     )
     cli::cli_abort("Bulk upgrade required: {detail}", call. = FALSE)
   }
