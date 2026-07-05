@@ -6,8 +6,8 @@
 # fetch the binary file.
 
 # Valid format strings accepted by the server bulk endpoint.
-.BULK_VALID_FORMATS    <- c("parquet", "csv_gz", "geoparquet")
-.BULK_VALID_FRESHNESS  <- c("auto", "monthly", "current")
+.BULK_VALID_FORMATS <- c("parquet", "csv_gz", "geoparquet")
+.BULK_VALID_FRESHNESS <- c("auto", "monthly", "current")
 
 # ---------------------------------------------------------------------------
 # Internal TTY gate -- thin wrapper so tests can mock it cleanly via
@@ -40,11 +40,11 @@
   if (is.character(progress) && length(progress) == 1L && nzchar(progress)) {
     p <- tolower(trimws(progress))
     return(switch(p,
-      both     = list(download = TRUE,  read = TRUE),
-      all      = list(download = TRUE,  read = TRUE),
-      download = list(download = TRUE,  read = FALSE),
-      read     = list(download = FALSE, read = TRUE),
-      none     = list(download = FALSE, read = FALSE),
+      both = list(download = TRUE, read = TRUE),
+      all = list(download = TRUE, read = TRUE),
+      download = list(download = TRUE, read = FALSE),
+      read = list(download = FALSE, read = TRUE),
+      none = list(download = FALSE, read = FALSE),
       stop(
         "`progress` must be TRUE, FALSE, NULL, or one of ",
         '"both", "download", "read", "none".',
@@ -118,7 +118,7 @@
 }
 
 .eolas_stream_to_file <- function(resp, dest_path, total_bytes, label, show_bar) {
-  CHUNK <- 1048576L  # 1 MiB per chunk
+  CHUNK <- 1048576L # 1 MiB per chunk
 
   has_cli <- requireNamespace("cli", quietly = TRUE)
   if (length(total_bytes) != 1L) total_bytes <- NA_real_
@@ -161,11 +161,11 @@
 # Infer parquet vs geoparquet from dataset metadata (shared by get_local / cache_clear).
 .eolas_detect_bulk_format <- function(meta, name, base_url) {
   if (is.null(meta)) meta <- eolas_info(name, base_url = base_url)
-  gt        <- if ("geometry_type" %in% names(meta)) meta$geometry_type[[1]] else NULL
-  wkt       <- if ("geometry_wkt" %in% names(meta)) meta$geometry_wkt[[1]] else NULL
-  gt_truthy <- !is.null(gt)  && nzchar(gt)  && gt  != "none"
+  gt <- if ("geometry_type" %in% names(meta)) meta$geometry_type[[1]] else NULL
+  wkt <- if ("geometry_wkt" %in% names(meta)) meta$geometry_wkt[[1]] else NULL
+  gt_truthy <- !is.null(gt) && nzchar(gt) && gt != "none"
   wkt_truthy <- !is.null(wkt) && nzchar(wkt) && wkt != "none"
-  has_geom  <- if ("has_geometry" %in% names(meta)) isTRUE(meta$has_geometry[[1]]) else FALSE
+  has_geom <- if ("has_geometry" %in% names(meta)) isTRUE(meta$has_geometry[[1]]) else FALSE
   if (gt_truthy || wkt_truthy || has_geom) "geoparquet" else "parquet"
 }
 
@@ -207,7 +207,8 @@
   tbl <- arrow::read_parquet(file_path)
   if (!"geometry" %in% names(tbl)) {
     stop(".eolas_arrow_wkb_to_sf: no 'geometry' column in ", file_path,
-         call. = FALSE)
+      call. = FALSE
+    )
   }
 
   # arrow returns a list-vector of `arrow_binary` raw payloads -- convert to
@@ -318,8 +319,9 @@
 #'
 #' # GeoParquet for a geospatial dataset
 #' eolas_download_bulk("territorial_authority_2023",
-#'                     format = "geoparquet",
-#'                     path   = "ta2023.geo.parquet")
+#'   format = "geoparquet",
+#'   path   = "ta2023.geo.parquet"
+#' )
 #'
 #' # Silence the bar in a script run interactively
 #' eolas_download_bulk("nz_cpi", path = "nz_cpi.parquet", progress = FALSE)
@@ -329,24 +331,29 @@
 #' <https://docs.eolas.fyi/bulk-downloads/>
 eolas_download_bulk <- function(name,
                                 freshness = "auto",
-                                format    = "parquet",
-                                path      = NULL,
-                                progress  = NULL,
-                                base_url  = EOLAS_BASE_URL,
+                                format = "parquet",
+                                path = NULL,
+                                progress = NULL,
+                                base_url = EOLAS_BASE_URL,
                                 ...) {
-
   # ---- argument validation --------------------------------------------------
+  # `...` is reserved for future args; reject anything passed now so a misspelled
+  # argument (e.g. `dest_dir=` instead of `path=`) errors loudly instead of being
+  # silently swallowed and the file written to the wrong place. (audit R-S3-2)
+  rlang::check_dots_empty()
   if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
     stop("`name` must be a non-empty string.", call. = FALSE)
   }
-  format    <- match.arg(format,    .BULK_VALID_FORMATS)
+  format <- match.arg(format, .BULK_VALID_FORMATS)
   freshness <- match.arg(freshness, .BULK_VALID_FRESHNESS)
 
   # ---- resolve name -> namespace + table ------------------------------------
-  meta      <- eolas_info(name, base_url = base_url)
+  meta <- eolas_info(name, base_url = base_url)
   namespace <- .eolas_dataset_field(meta, "namespace", "")
-  table     <- .eolas_dataset_field(meta, "table",
-                                    .eolas_dataset_field(meta, "name", name))
+  table <- .eolas_dataset_field(
+    meta, "table",
+    .eolas_dataset_field(meta, "name", name)
+  )
 
   if (!nzchar(namespace)) {
     stop(
@@ -366,6 +373,9 @@ eolas_download_bulk <- function(name,
   req <- httr2::request(url) |>
     httr2::req_headers("X-API-Key" = key) |>
     httr2::req_user_agent(.eolas_user_agent()) |>
+    # Generous total-request timeout so a black-holed connection can't hang forever
+    # mid bulk-download, while still allowing a large file. (audit EH-1)
+    httr2::req_timeout(1800) |>
     httr2::req_url_query(!!!query) |>
     httr2::req_error(is_error = \(r) FALSE)
 
@@ -375,10 +385,10 @@ eolas_download_bulk <- function(name,
   use_streaming <- .eolas_use_streaming()
   if (use_streaming) {
     conn_resp <- httr2::req_perform_connection(req)
-    status    <- httr2::resp_status(conn_resp)
+    status <- httr2::resp_status(conn_resp)
   } else {
     conn_resp <- eolas_http_perform(req)
-    status    <- httr2::resp_status(conn_resp)
+    status <- httr2::resp_status(conn_resp)
   }
 
   # ---- bulk-specific status handling ----------------------------------------
@@ -425,28 +435,31 @@ eolas_download_bulk <- function(name,
   out_path <- normalizePath(path, mustWork = FALSE)
   dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
 
-  show_bar    <- .eolas_resolve_progress(progress, "download")
+  show_bar <- .eolas_resolve_progress(progress, "download")
   total_bytes <- .eolas_resp_content_length(conn_resp)
   label <- paste0("Downloading ", basename(out_path))
 
   rand_hex <- paste0(sample(c(0:9, letters[1:6]), 8, replace = TRUE), collapse = "")
   tmp_path <- paste0(out_path, ".eolas-tmp-", rand_hex)
 
-  bytes_dl <- tryCatch({
-    if (use_streaming) {
-      n <- .eolas_stream_to_file(conn_resp, tmp_path, total_bytes, label, show_bar)
-      close(conn_resp)
-      n
-    } else {
-      # Non-streaming (test mock) path -- body already buffered.
-      raw_bytes <- httr2::resp_body_raw(conn_resp)
-      writeBin(raw_bytes, tmp_path)
-      length(raw_bytes)
+  bytes_dl <- tryCatch(
+    {
+      if (use_streaming) {
+        n <- .eolas_stream_to_file(conn_resp, tmp_path, total_bytes, label, show_bar)
+        close(conn_resp)
+        n
+      } else {
+        # Non-streaming (test mock) path -- body already buffered.
+        raw_bytes <- httr2::resp_body_raw(conn_resp)
+        writeBin(raw_bytes, tmp_path)
+        length(raw_bytes)
+      }
+    },
+    error = function(e) {
+      unlink(tmp_path)
+      stop(e)
     }
-  }, error = function(e) {
-    unlink(tmp_path)
-    stop(e)
-  })
+  )
 
   if (bytes_dl == 0L) {
     unlink(tmp_path)
@@ -505,12 +518,12 @@ eolas_download_bulk <- function(name,
   # Bulk refusal codes on HEAD must still propagate.
   status <- httr2::resp_status(resp)
   if (status == 402L) {
-    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
+    body <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
     detail <- body$detail %||% "Fresh bulk downloads are a Pro feature."
     cli::cli_abort("Bulk upgrade required: {detail}", call. = FALSE)
   }
   if (status == 403L) {
-    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
+    body <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
     detail <- body$detail %||% ""
     if (nzchar(detail) && grepl("licence", detail, ignore.case = TRUE)) {
       cli::cli_abort("Bulk licence restricted: {detail}", call. = FALSE)
@@ -518,7 +531,7 @@ eolas_download_bulk <- function(name,
     eolas_check_status(resp)
   }
   if (status == 503L) {
-    body   <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
+    body <- tryCatch(httr2::resp_body_json(resp), error = \(e) list())
     detail <- body$detail %||% "Monthly bulk snapshots are still rolling out."
     cli::cli_abort("Bulk not yet available: {detail}", call. = FALSE)
   }
@@ -582,12 +595,12 @@ eolas_download_bulk <- function(name,
 #'
 #' # First call: full download
 #' r <- eolas_sync_bulk("nz_cpi", path = "nz_cpi.parquet")
-#' r$status           # "downloaded"
+#' r$status # "downloaded"
 #' r$bytes_downloaded # e.g. 2100000
 #'
 #' # Second call (same snapshot): no network I/O on the data file
 #' r <- eolas_sync_bulk("nz_cpi", path = "nz_cpi.parquet")
-#' r$status           # "unchanged"
+#' r$status # "unchanged"
 #' r$bytes_downloaded # 0
 #'
 #' # Poll for updates in a long-running script
@@ -600,13 +613,12 @@ eolas_download_bulk <- function(name,
 #' @seealso \code{\link{eolas_download_bulk}}, <https://docs.eolas.fyi/bulk-downloads/>
 eolas_sync_bulk <- function(name,
                             path,
-                            format    = "parquet",
+                            format = "parquet",
                             freshness = "auto",
-                            progress  = NULL,
-                            force     = FALSE,
-                            base_url  = EOLAS_BASE_URL,
+                            progress = NULL,
+                            force = FALSE,
+                            base_url = EOLAS_BASE_URL,
                             ...) {
-
   # ---- argument validation --------------------------------------------------
   if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
     stop("`name` must be a non-empty string.", call. = FALSE)
@@ -614,21 +626,23 @@ eolas_sync_bulk <- function(name,
   if (missing(path) || is.null(path)) {
     stop("`path` is required for eolas_sync_bulk().", call. = FALSE)
   }
-  format    <- match.arg(format,    .BULK_VALID_FORMATS)
+  format <- match.arg(format, .BULK_VALID_FORMATS)
   freshness <- match.arg(freshness, .BULK_VALID_FRESHNESS)
   .eolas_apply_force(name, force, base_url = base_url)
 
-  out_path    <- normalizePath(path, mustWork = FALSE)
+  out_path <- normalizePath(path, mustWork = FALSE)
   sidecar_path <- paste0(out_path, ".eolas-meta.json")
 
   # ---- read local sidecar ---------------------------------------------------
   prev <- if (file.exists(sidecar_path)) .read_sidecar(sidecar_path) else NULL
 
   # ---- resolve name -> namespace + table ------------------------------------
-  meta      <- eolas_info(name, base_url = base_url)
+  meta <- eolas_info(name, base_url = base_url)
   namespace <- .eolas_dataset_field(meta, "namespace", "")
-  table     <- .eolas_dataset_field(meta, "table",
-                                    .eolas_dataset_field(meta, "name", name))
+  table <- .eolas_dataset_field(
+    meta, "table",
+    .eolas_dataset_field(meta, "name", name)
+  )
 
   if (!nzchar(namespace)) {
     stop(
@@ -650,9 +664,9 @@ eolas_sync_bulk <- function(name,
   # ---- no-op fast path ------------------------------------------------------
   prev_sid <- if (!is.null(prev)) prev$snapshot_id %||% NA_character_ else NA_character_
   if (!isTRUE(force) &&
-      !is.na(prev_sid) &&
-      identical(prev_sid, current_sid) &&
-      file.exists(out_path)) {
+    !is.na(prev_sid) &&
+    identical(prev_sid, current_sid) &&
+    file.exists(out_path)) {
     if (requireNamespace("cli", quietly = TRUE)) {
       cli::cli_inform(c(
         "i" = "Using cached {.file {basename(out_path)}} (up to date)."
@@ -670,12 +684,15 @@ eolas_sync_bulk <- function(name,
   # ---- download (atomic replace) --------------------------------------------
   dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
 
-  rand_hex  <- paste0(sample(c(0:9, letters[1:6]), 8, replace = TRUE), collapse = "")
-  tmp_path  <- paste0(out_path, ".eolas-tmp-", rand_hex)
+  rand_hex <- paste0(sample(c(0:9, letters[1:6]), 8, replace = TRUE), collapse = "")
+  tmp_path <- paste0(out_path, ".eolas-tmp-", rand_hex)
 
   req <- httr2::request(bulk_url) |>
     httr2::req_headers("X-API-Key" = key) |>
     httr2::req_user_agent(.eolas_user_agent()) |>
+    # Generous total-request timeout so a black-holed connection can't hang forever
+    # mid bulk-download, while still allowing a large file. (audit EH-1)
+    httr2::req_timeout(1800) |>
     httr2::req_url_query(!!!query) |>
     httr2::req_error(is_error = \(r) FALSE)
 
@@ -683,10 +700,10 @@ eolas_sync_bulk <- function(name,
   use_streaming <- .eolas_use_streaming()
   if (use_streaming) {
     conn_resp <- httr2::req_perform_connection(req)
-    status    <- httr2::resp_status(conn_resp)
+    status <- httr2::resp_status(conn_resp)
   } else {
     conn_resp <- eolas_http_perform(req)
-    status    <- httr2::resp_status(conn_resp)
+    status <- httr2::resp_status(conn_resp)
   }
 
   # ---- bulk-specific status handling (mirrors eolas_download_bulk) ----------
@@ -712,7 +729,7 @@ eolas_sync_bulk <- function(name,
     eolas_check_status(conn_resp)
   }
 
-  show_bar    <- .eolas_resolve_progress(progress, "download")
+  show_bar <- .eolas_resolve_progress(progress, "download")
   total_bytes <- .eolas_resp_content_length(conn_resp)
   label <- paste0("Downloading ", basename(out_path))
 
@@ -721,7 +738,7 @@ eolas_sync_bulk <- function(name,
     close(conn_resp)
   } else {
     raw_bytes <- httr2::resp_body_raw(conn_resp)
-    bytes_dl  <- length(raw_bytes)
+    bytes_dl <- length(raw_bytes)
     writeBin(raw_bytes, tmp_path)
   }
 
@@ -808,10 +825,10 @@ eolas_sync_bulk <- function(name,
 #' @seealso [eolas_get()], [eolas_sync_bulk()], [eolas_get_local()], [eolas_library_status()]
 eolas_cache_clear <- function(name = NULL,
                               cache_dir = NULL,
-                              format    = NULL,
-                              files     = TRUE,
-                              meta      = TRUE,
-                              base_url  = EOLAS_BASE_URL) {
+                              format = NULL,
+                              files = TRUE,
+                              meta = TRUE,
+                              base_url = EOLAS_BASE_URL) {
   if (!is.null(name) && (!is.character(name) || length(name) != 1L || !nzchar(name))) {
     stop("`name` must be NULL or a non-empty string.", call. = FALSE)
   }
@@ -976,17 +993,16 @@ eolas_cache_clear <- function(name = NULL,
 #' }
 #' @seealso [eolas_sync_bulk()], `eolas_library_set()`, <https://docs.eolas.fyi/bulk-downloads/>
 eolas_get_local <- function(name,
-                             cache_dir = NULL,
-                             format    = NULL,
-                             freshness = "auto",
-                             as_sf     = NULL,
-                             as_arrow  = FALSE,
-                             meta      = TRUE,
-                             progress  = NULL,
-                             force     = FALSE,
-                             base_url  = EOLAS_BASE_URL,
-                             ...) {
-
+                            cache_dir = NULL,
+                            format = NULL,
+                            freshness = "auto",
+                            as_sf = NULL,
+                            as_arrow = FALSE,
+                            meta = TRUE,
+                            progress = NULL,
+                            force = FALSE,
+                            base_url = EOLAS_BASE_URL,
+                            ...) {
   # ---- argument validation --------------------------------------------------
   if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
     stop("`name` must be a non-empty string.", call. = FALSE)
@@ -1020,7 +1036,9 @@ eolas_get_local <- function(name,
   meta_info <- .eolas_fetch_meta_info(name, base_url, meta)
 
   finish <- function(x) {
-    if (isTRUE(as_arrow)) return(x)
+    if (isTRUE(as_arrow)) {
+      return(x)
+    }
     .eolas_finalize_dataset(x, name = name, meta_info = meta_info)
   }
 
@@ -1032,19 +1050,21 @@ eolas_get_local <- function(name,
   }
 
   # ---- compute local file path ----------------------------------------------
-  ext       <- .BULK_EXTENSIONS[[fmt]]            # e.g. ".parquet", ".csv.gz", ".geo.parquet"
+  ext <- .BULK_EXTENSIONS[[fmt]] # e.g. ".parquet", ".csv.gz", ".geo.parquet"
   file_path <- file.path(cache_dir_abs, paste0(name, ext))
 
   # ---- sync (download if needed, HEAD check if cached) --------------------
   # Bulk-specific stop() errors (Bulk upgrade required / Bulk licence
   # restricted / Bulk not yet available) propagate unchanged -- their messages
   # already tell the user what to do.
-  eolas_sync_bulk(name, path = file_path, format = fmt,
-                  freshness = freshness, progress = progress, force = force,
-                  base_url = base_url)
+  eolas_sync_bulk(name,
+    path = file_path, format = fmt,
+    freshness = freshness, progress = progress, force = force,
+    base_url = base_url
+  )
 
   show_read <- .eolas_resolve_progress(progress, "read")
-  read_lbl  <- basename(file_path)
+  read_lbl <- basename(file_path)
   read_prog <- function(expr) .eolas_with_read_progress(read_lbl, show_read, expr)
 
   # ---- read the local file into a data frame --------------------------------
@@ -1075,7 +1095,7 @@ eolas_get_local <- function(name,
     # is the WKT-string variant. See [[project_geoparquet_evolution]].
     primary_err <- NULL
     if (requireNamespace("arrow", quietly = TRUE) &&
-        requireNamespace("sf",    quietly = TRUE)) {
+      requireNamespace("sf", quietly = TRUE)) {
       result <- tryCatch(
         read_prog(.eolas_arrow_wkb_to_sf(file_path)),
         error = function(e) {
@@ -1083,7 +1103,9 @@ eolas_get_local <- function(name,
           NULL
         }
       )
-      if (!is.null(result)) return(finish(result))
+      if (!is.null(result)) {
+        return(finish(result))
+      }
     }
 
     # Last-resort sfarrow attempt (in case arrow isn't installed). sfarrow
@@ -1099,7 +1121,9 @@ eolas_get_local <- function(name,
           NULL
         }
       )
-      if (!is.null(result)) return(finish(result))
+      if (!is.null(result)) {
+        return(finish(result))
+      }
 
       # sfarrow failed -- likely malformed GeoParquet metadata (e.g. empty
       # geometry_types array from an older S3 snapshot).  Fall back to the
@@ -1142,17 +1166,20 @@ eolas_get_local <- function(name,
         dirname(file_path),
         paste0(name, ".parquet")
       )
-      fallback_err <- tryCatch({
-        eolas_sync_bulk(
-          name,
-          path      = parquet_path,
-          format    = "parquet",
-          freshness = freshness,
-          progress  = progress,
-          base_url  = base_url
-        )
-        NULL
-      }, error = function(e) e)
+      fallback_err <- tryCatch(
+        {
+          eolas_sync_bulk(
+            name,
+            path      = parquet_path,
+            format    = "parquet",
+            freshness = freshness,
+            progress  = progress,
+            base_url  = base_url
+          )
+          NULL
+        },
+        error = function(e) e
+      )
 
       if (!is.null(fallback_err)) {
         stop(
