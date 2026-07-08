@@ -1,3 +1,13 @@
+# eolas 1.3.22
+
+* **Faster failure against an unreachable API host.** `eolas_get()` first tries
+  the Arrow wire format, then falls back to JSON. A transport failure (timeout /
+  connection / DNS) on the Arrow attempt was swallowed and retried as JSON, so an
+  unreachable host paid the request timeout **twice** (~2x latency, ~240s at the
+  default budget). Transport failures are now re-raised immediately after the
+  first attempt; the JSON fallback is still used when a server simply does not
+  speak Arrow.
+
 # eolas 1.3.21
 
 * **`EOLAS_BASE_URL` environment variable is now honoured.** The default API
