@@ -193,8 +193,20 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
           eolas_http_get,
           c(list(path, base_url = base_url, format = "arrow"), params)
         ),
-        error = function(e) NULL
+        # Capture any error as a value (do NOT re-raise inside the handler: a
+        # stop() there is re-caught by this same tryCatch and swallowed).
+        error = function(e) e
       )
+      if (inherits(resp, "condition")) {
+        # A transport failure (timeout / connection / DNS) recurs identically on
+        # the JSON attempt below, so re-raise it now, OUTSIDE the handler, instead
+        # of paying the req_timeout() budget a second time -- an unreachable host
+        # otherwise takes ~2x the timeout to surface. Any other error falls
+        # through to the JSON attempt (a 200-but-non-arrow old server never errors
+        # here; it is handled by the content-type check below).
+        if (inherits(resp, "httr2_failure")) stop(resp)
+        resp <- NULL
+      }
       ctype <- if (is.null(resp)) "" else (httr2::resp_content_type(resp) %||% "")
       if (!is.null(resp) && grepl("arrow", ctype, fixed = TRUE)) {
         .eolas_runtime$arrow_supported <- TRUE
