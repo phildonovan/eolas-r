@@ -1,3 +1,11 @@
+# eolas 1.3.21
+
+* **`EOLAS_BASE_URL` environment variable is now honoured.** The default API
+  base was previously a hardcoded literal, so setting `EOLAS_BASE_URL` (e.g. to
+  point at a dev/staging host) had no effect. It is now read at load, so
+  `EOLAS_BASE_URL=... R` or an `.Renviron` entry selects the host. A per-call
+  override is still the explicit `base_url=` argument.
+
 # eolas 1.3.20
 
 Hotfix release addressing issues found in the 2026-07-05 client-library audit.

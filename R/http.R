@@ -1,4 +1,11 @@
-EOLAS_BASE_URL <- "https://api.eolas.fyi"
+# Default API base. Read from the EOLAS_BASE_URL env var so a dev/staging host
+# can be selected with `EOLAS_BASE_URL=... R` or an .Renviron entry (previously
+# this was a hardcoded literal, so the env var was silently inert). Read at load;
+# a per-call override is still the explicit `base_url=` argument.
+.eolas_default_base_url <- function() {
+  Sys.getenv("EOLAS_BASE_URL", unset = "https://api.eolas.fyi")
+}
+EOLAS_BASE_URL <- .eolas_default_base_url()
 
 # Per-session runtime memo (R has no client object):
 #   $arrow_supported  NULL = unknown (try it), TRUE = server speaks Arrow,
