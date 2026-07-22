@@ -14,6 +14,7 @@ eolas_get_local(
   meta = TRUE,
   progress = NULL,
   force = FALSE,
+  geometry = TRUE,
   base_url = EOLAS_BASE_URL,
   ...
 )
