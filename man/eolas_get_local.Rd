@@ -14,6 +14,7 @@ eolas_get_local(
   meta = TRUE,
   progress = NULL,
   force = FALSE,
+  geometry = TRUE,
   base_url = EOLAS_BASE_URL,
   ...
 )
@@ -65,6 +66,14 @@ an informative message instead.}
 \item{force}{When \code{TRUE}, drop session \code{\link[=eolas_info]{eolas_info()}} cache and re-download
 the bulk file even when the sidecar says the snapshot is current. See
 \code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}} and \code{\link[=eolas_cache_clear]{eolas_cache_clear()}}.}
+
+\item{geometry}{When \code{FALSE}, omit the \code{geometry_wkt} column. The column is
+skipped at \emph{read} time via a Parquet column projection, so its chunks are
+never decoded and the whole sf/WKB conversion path is bypassed -- geometry
+is typically ~95\% of a spatial layer's bytes. The cached file itself is
+unchanged, so a later call with \code{geometry = TRUE} recovers the geometry from
+the same local file without re-downloading. Forces \code{as_sf = FALSE}, since
+there is nothing left to convert.}
 
 \item{base_url}{Override the API base URL (useful for testing).}
 

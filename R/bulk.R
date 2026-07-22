@@ -186,6 +186,12 @@
   )
 }
 
+# Geometry columns excluded when a caller passes geometry = FALSE.
+# `geometry_wkt` is the eolas convention (data-conventions.md section 3, always
+# that name); `geometry` is what GeoParquet bulk artifacts carry as their WKB
+# column.
+.EOLAS_GEOMETRY_COLUMNS <- c("geometry_wkt", "geometry")
+
 # Thin wrapper around sfarrow::st_read_parquet() -- exists solely so tests can
 # mock it via local_mocked_bindings(.env = getNamespace("eolas")) without
 # having to patch the sfarrow namespace directly.
@@ -964,6 +970,13 @@ eolas_cache_clear <- function(name = NULL,
 #' @param force When `TRUE`, drop session [eolas_info()] cache and re-download
 #'   the bulk file even when the sidecar says the snapshot is current. See
 #'   [eolas_sync_bulk()] and [eolas_cache_clear()].
+#' @param geometry When `FALSE`, omit the `geometry_wkt` column. The column is
+#'   skipped at *read* time via a Parquet column projection, so its chunks are
+#'   never decoded and the whole sf/WKB conversion path is bypassed -- geometry
+#'   is typically ~95% of a spatial layer's bytes. The cached file itself is
+#'   unchanged, so a later call with `geometry = TRUE` recovers the geometry from
+#'   the same local file without re-downloading. Forces `as_sf = FALSE`, since
+#'   there is nothing left to convert.
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved for future arguments; currently ignored.
 #' @return A `data.frame`, `sf` object, or `arrow::Table`, depending on the
@@ -1002,6 +1015,7 @@ eolas_get_local <- function(name,
                             meta = TRUE,
                             progress = NULL,
                             force = FALSE,
+                            geometry = TRUE,
                             base_url = EOLAS_BASE_URL,
                             ...) {
   # ---- argument validation --------------------------------------------------
@@ -1069,6 +1083,36 @@ eolas_get_local <- function(name,
   read_prog <- function(expr) .eolas_with_read_progress(read_lbl, show_read, expr)
 
   # ---- read the local file into a data frame --------------------------------
+  # geometry = FALSE: project the geometry column away AT READ TIME. The cached
+  # artifact is left exactly as downloaded (one file serves both variants -- no
+  # cache duplication or rewrite), but Parquet is columnar, so an unselected
+  # column is never decoded and its pages are never read off disk. Reading
+  # everything and dropping afterwards would pay the whole WKB/WKT parse and peak
+  # memory for data we discard -- on a large boundary layer, most of the cost.
+  # This also skips the entire sf/sfarrow/WKB machinery below.
+  if (isFALSE(geometry)) {
+    if (fmt == "csv_gz") {
+      df_ng <- read_prog(utils::read.csv(gzfile(file_path), stringsAsFactors = FALSE))
+      df_ng <- df_ng[, setdiff(names(df_ng), .EOLAS_GEOMETRY_COLUMNS), drop = FALSE]
+      if (isTRUE(as_arrow)) {
+        rlang::check_installed("arrow", reason = "for as_arrow = TRUE")
+        return(arrow::as_arrow_table(df_ng))
+      }
+      return(finish(df_ng))
+    }
+    rlang::check_installed("arrow", reason = "to read Parquet data from eolas")
+    keep <- setdiff(
+      names(arrow::open_dataset(file_path, format = "parquet")$schema),
+      .EOLAS_GEOMETRY_COLUMNS
+    )
+    tbl_ng <- read_prog(
+      arrow::read_parquet(file_path, col_select = tidyselect::all_of(keep),
+                          as_data_frame = !isTRUE(as_arrow))
+    )
+    if (isTRUE(as_arrow)) return(tbl_ng)
+    return(finish(as.data.frame(tbl_ng)))
+  }
+
   # as_arrow=TRUE: return arrow::Table directly, skipping all sf/WKB conversion.
   # Works for parquet, geoparquet, and csv_gz.
   if (isTRUE(as_arrow)) {

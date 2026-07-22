@@ -1,3 +1,18 @@
+# eolas 1.9.1
+
+* **`geometry = FALSE` now skips the column at READ time, not after.** Previously
+  the whole Parquet was read -- including the WKT -- and the column was dropped
+  afterwards, paying the full parse and peak memory for data immediately
+  discarded. `eolas_get_local()` now passes a `col_select` projection to
+  `arrow::read_parquet()`, so those column chunks are never decoded, and the
+  entire sf/sfarrow/WKB conversion path is skipped. Geometry is typically ~95% of
+  a spatial layer's bytes.
+* The cached file is unchanged -- one artifact still serves both variants, so
+  upgrading a non-spatial read back to spatial re-reads the same local file with
+  no re-download.
+* `eolas_get_local()` gains a `geometry` argument, mirroring `eolas_get()`.
+* New dependency: `tidyselect` (already an indirect `arrow` dependency).
+
 # eolas 1.9.0
 
 Version jumps 1.4.0 -> 1.9.0 to clear a band of PyPI versions (1.5.0-1.8.0)

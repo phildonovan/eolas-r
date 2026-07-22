@@ -130,11 +130,12 @@ test_that(".eolas_live_pull_blocked keeps the row-count trigger when geometry=FA
 })
 
 
-# ---- bulk-route path (Grok review, 2026-07-22) -----------------------------
-# A spatial table ALSO over the row-count threshold stays "blocked" even with
-# geometry = FALSE, so eolas_get() routes it to the bulk cache. The flag must
-# survive that hand-off, or the caller silently receives the full
-# geometry-bearing file -- and with as_sf = NULL, an auto-converted sf object.
+# ---- bulk-route path -------------------------------------------------------
+# A spatial table ALSO over the row-count threshold stays blocked even with
+# geometry = FALSE, so eolas_get() routes it to the bulk cache -- which has no
+# server-side projection. Two responsibilities, tested separately:
+#   eolas_get()       must pass the flag DOWN to eolas_get_local()
+#   eolas_get_local() must project the column away AT READ TIME
 
 BIG_GEO_META <- paste0(
   '{"name":"nz_parcels","title":"Parcels","source":"LINZ","namespace":"linz",',
@@ -142,9 +143,9 @@ BIG_GEO_META <- paste0(
   '"bulk_export_class":"materialised","row_count_at_last_refresh":2000000}'
 )
 
-test_that("bulk-routed eolas_get(geometry = FALSE) strips the geometry column", {
-  seen <- list()
-  res <- with_mocked_bindings(
+test_that("eolas_get() passes geometry down to eolas_get_local()", {
+  seen <- new.env(parent = emptyenv())
+  with_mocked_bindings(
     {
       set_test_key()
       with_mocked_bindings(
@@ -154,24 +155,20 @@ test_that("bulk-routed eolas_get(geometry = FALSE) strips the geometry column", 
         .package = "eolas"
       )
     },
-    eolas_get_local = function(name, as_sf = NULL, ...) {
-      seen$as_sf <<- as_sf
-      data.frame(
-        parcel_id = 1L,
-        geometry_wkt = "POINT(174 -36)",
-        stringsAsFactors = FALSE
-      )
+    eolas_get_local = function(name, geometry = TRUE, ...) {
+      seen$geometry <- geometry
+      data.frame(parcel_id = 1L)
     },
     .package = "eolas"
   )
-  expect_false("geometry_wkt" %in% names(res))
-  expect_true("parcel_id" %in% names(res))
-  # Must not hand back an sf object either.
-  expect_false(isTRUE(seen$as_sf))
+  # Dropping the column afterwards would decode the WKT for nothing -- the flag
+  # has to reach the reader.
+  expect_false(seen$geometry)
 })
 
-test_that("bulk-routed eolas_get() keeps geometry by default", {
-  res <- with_mocked_bindings(
+test_that("eolas_get() defaults to geometry = TRUE on the bulk route", {
+  seen <- new.env(parent = emptyenv())
+  with_mocked_bindings(
     {
       set_test_key()
       with_mocked_bindings(
@@ -181,14 +178,82 @@ test_that("bulk-routed eolas_get() keeps geometry by default", {
         .package = "eolas"
       )
     },
-    eolas_get_local = function(name, as_sf = NULL, ...) {
-      data.frame(
-        parcel_id = 1L,
-        geometry_wkt = "POINT(174 -36)",
-        stringsAsFactors = FALSE
-      )
+    eolas_get_local = function(name, geometry = TRUE, ...) {
+      seen$geometry <- geometry
+      data.frame(parcel_id = 1L)
     },
     .package = "eolas"
   )
-  expect_true("geometry_wkt" %in% names(res))
+  expect_true(seen$geometry)
+})
+
+.write_geo_parquet <- function(path) {
+  arrow::write_parquet(
+    data.frame(
+      parcel_id = 1:2,
+      area_m2 = c(100, 250),
+      geometry_wkt = c("POINT(174 -36)", "POINT(175 -37)"),
+      stringsAsFactors = FALSE
+    ),
+    path
+  )
+}
+
+test_that("eolas_get_local(geometry = FALSE) projects the column at read time", {
+  skip_if_not_installed("arrow")
+  dir <- withr::local_tempdir()
+  target <- file.path(dir, "nz_parcels.parquet")
+  .write_geo_parquet(target)
+  before <- file.info(target)$size
+
+  out <- with_mocked_bindings(
+    eolas_get_local("nz_parcels",
+      cache_dir = dir, format = "parquet",
+      meta = FALSE, geometry = FALSE
+    ),
+    eolas_sync_bulk = function(...) invisible(target),
+    .package = "eolas"
+  )
+
+  expect_false("geometry_wkt" %in% names(out))
+  expect_equal(sort(names(out)), c("area_m2", "parcel_id"))
+  expect_equal(nrow(out), 2L)
+
+  # The cached artifact is untouched -- one file serves both variants.
+  expect_equal(file.info(target)$size, before)
+  expect_true("geometry_wkt" %in% names(arrow::open_dataset(target, format = "parquet")$schema))
+})
+
+test_that("eolas_get_local() keeps geometry by default", {
+  skip_if_not_installed("arrow")
+  dir <- withr::local_tempdir()
+  target <- file.path(dir, "nz_parcels.parquet")
+  .write_geo_parquet(target)
+
+  out <- with_mocked_bindings(
+    eolas_get_local("nz_parcels",
+      cache_dir = dir, format = "parquet",
+      meta = FALSE, as_sf = FALSE
+    ),
+    eolas_sync_bulk = function(...) invisible(target),
+    .package = "eolas"
+  )
+  expect_true("geometry_wkt" %in% names(out))
+})
+
+test_that("eolas_get_local(geometry = FALSE) never returns an sf object", {
+  skip_if_not_installed("arrow")
+  dir <- withr::local_tempdir()
+  target <- file.path(dir, "nz_parcels.parquet")
+  .write_geo_parquet(target)
+
+  out <- with_mocked_bindings(
+    eolas_get_local("nz_parcels",
+      cache_dir = dir, format = "parquet",
+      meta = FALSE, geometry = FALSE
+    ),
+    eolas_sync_bulk = function(...) invisible(target),
+    .package = "eolas"
+  )
+  expect_false(inherits(out, "sf"))
 })
