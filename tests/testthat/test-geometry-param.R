@@ -257,3 +257,86 @@ test_that("eolas_get_local(geometry = FALSE) never returns an sf object", {
   )
   expect_false(inherits(out, "sf"))
 })
+
+
+# ---- format branches --------------------------------------------------------
+# These paths existed but had never been executed by any test: the csv_gz reader
+# (also the fallback when a Parquet read fails) and the as_arrow reader.
+
+.write_geo_csv_gz <- function(path) {
+  con <- gzfile(path, "w")
+  utils::write.csv(
+    data.frame(
+      a = 1:2, b = c("x", "y"),
+      geometry_wkt = c("POINT(1 1)", "POINT(2 2)"),
+      stringsAsFactors = FALSE
+    ),
+    con,
+    row.names = FALSE
+  )
+  close(con)
+}
+
+test_that("csv_gz read honours geometry = FALSE", {
+  dir <- withr::local_tempdir()
+  target <- file.path(dir, "x.csv.gz")
+  .write_geo_csv_gz(target)
+  out <- with_mocked_bindings(
+    eolas_get_local("x",
+      cache_dir = dir, format = "csv_gz",
+      meta = FALSE, geometry = FALSE
+    ),
+    eolas_sync_bulk = function(...) invisible(target),
+    .package = "eolas"
+  )
+  expect_equal(sort(names(out)), c("a", "b"))
+  expect_equal(nrow(out), 2L)
+})
+
+test_that("csv_gz read keeps geometry by default", {
+  dir <- withr::local_tempdir()
+  target <- file.path(dir, "x.csv.gz")
+  .write_geo_csv_gz(target)
+  out <- with_mocked_bindings(
+    eolas_get_local("x",
+      cache_dir = dir, format = "csv_gz",
+      meta = FALSE, as_sf = FALSE
+    ),
+    eolas_sync_bulk = function(...) invisible(target),
+    .package = "eolas"
+  )
+  expect_true("geometry_wkt" %in% names(out))
+})
+
+test_that("as_arrow honours geometry = FALSE", {
+  skip_if_not_installed("arrow")
+  dir <- withr::local_tempdir()
+  target <- file.path(dir, "y.parquet")
+  .write_geo_parquet(target)
+  out <- with_mocked_bindings(
+    eolas_get_local("y",
+      cache_dir = dir, format = "parquet",
+      meta = FALSE, geometry = FALSE, as_arrow = TRUE
+    ),
+    eolas_sync_bulk = function(...) invisible(target),
+    .package = "eolas"
+  )
+  expect_s3_class(out, "Table")
+  expect_false("geometry_wkt" %in% names(out))
+})
+
+test_that("as_arrow keeps geometry by default", {
+  skip_if_not_installed("arrow")
+  dir <- withr::local_tempdir()
+  target <- file.path(dir, "y.parquet")
+  .write_geo_parquet(target)
+  out <- with_mocked_bindings(
+    eolas_get_local("y",
+      cache_dir = dir, format = "parquet",
+      meta = FALSE, as_arrow = TRUE
+    ),
+    eolas_sync_bulk = function(...) invisible(target),
+    .package = "eolas"
+  )
+  expect_true("geometry_wkt" %in% names(out))
+})
