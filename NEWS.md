@@ -1,4 +1,10 @@
-# eolas 1.4.0
+# eolas 1.9.0
+
+Version jumps 1.4.0 -> 1.9.0 to clear a band of PyPI versions (1.5.0-1.8.0)
+burned by yanked May-2026 uploads of the sibling `eolas-data` package. Yanked
+filenames are permanently reserved, so those numbers can never be published
+again. Both clients move together to keep their versions aligned.
+
 
 * **`eolas_get(geometry = FALSE)` omits the `geometry_wkt` column.** Two-thirds
   of eolas datasets (1017/1536) carry geometry, and on TA/RC boundary tables the
