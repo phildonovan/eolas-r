@@ -282,10 +282,41 @@
     return(NULL)
   }
   # Routing decision is final -- never fall back to the live /data path (413).
-  eolas_get_local(
-    name = name, as_sf = as_sf, as_arrow = FALSE, meta = meta,
+  # The bulk artifact always carries geometry_wkt -- there is no server-side
+  # projection on that path. If the caller asked for geometry = FALSE we must
+  # honour it here, or a >100k-row spatial table (still blocked by the row-count
+  # trigger, so still routed) silently returns the full geometry-bearing file,
+  # and with as_sf = NULL even auto-converts to sf -- the exact opposite of what
+  # was requested. Found in review, 2026-07-22.
+  out <- eolas_get_local(
+    name = name, as_sf = if (isFALSE(geometry)) FALSE else as_sf,
+    as_arrow = FALSE, meta = meta,
     progress = progress, force = force, base_url = base_url, ...
   )
+  if (isFALSE(geometry)) out <- .eolas_drop_geometry_column(out)
+  out
+}
+
+# Remove geometry from a bulk-read frame for eolas_get(geometry = FALSE).
+# Handles the raw WKT column and, defensively, an sf geometry column if one was
+# materialised upstream. Preserves attributes so eolas_dataset metadata survives.
+.eolas_drop_geometry_column <- function(x) {
+  if (is.null(x) || !is.data.frame(x)) return(x)
+  drop <- intersect("geometry_wkt", names(x))
+  if (inherits(x, "sf")) {
+    sf_col <- attr(x, "sf_column")
+    if (!is.null(sf_col)) drop <- unique(c(drop, sf_col))
+    if (requireNamespace("sf", quietly = TRUE)) x <- sf::st_drop_geometry(x)
+    drop <- intersect(drop, names(x))
+  }
+  if (!length(drop)) return(x)
+  keep <- setdiff(names(x), drop)
+  saved <- attributes(x)[c("eolas_name", "eolas_source", "eolas_meta", "eolas_columns")]
+  out <- x[, keep, drop = FALSE]
+  for (nm in names(saved)) {
+    if (!is.null(saved[[nm]])) attr(out, nm) <- saved[[nm]]
+  }
+  out
 }
 
 .eolas_finalize_dataset <- function(x, name, meta_info = NULL, source = NULL) {

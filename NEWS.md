@@ -11,6 +11,12 @@
   `geometry = FALSE` the client keeps such calls on the live path, matching the
   server's relaxed guard. The row-count trigger is unchanged -- dropping a column
   does not reduce row count.
+* **`geometry = FALSE` is honoured on the bulk-routed path too.** A spatial table
+  over the 100k-row threshold stays blocked even with `geometry = FALSE`, so the
+  call routes to the bulk cache -- which has no server-side projection. The flag
+  was dropped at that hand-off, so the caller silently received the full
+  geometry-bearing file and, with `as_sf = NULL`, an auto-converted `sf` object.
+  Found in peer review.
 * `geometry = FALSE` with `as_sf = TRUE` now errors: there would be no geometry
   to convert.
 

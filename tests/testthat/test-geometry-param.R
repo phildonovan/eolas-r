@@ -128,3 +128,67 @@ test_that(".eolas_live_pull_blocked keeps the row-count trigger when geometry=FA
   # ...and geometry alone still blocks when geometry is requested.
   expect_true(eolas:::.eolas_live_pull_blocked(small, geometry = TRUE))
 })
+
+
+# ---- bulk-route path (Grok review, 2026-07-22) -----------------------------
+# A spatial table ALSO over the row-count threshold stays "blocked" even with
+# geometry = FALSE, so eolas_get() routes it to the bulk cache. The flag must
+# survive that hand-off, or the caller silently receives the full
+# geometry-bearing file -- and with as_sf = NULL, an auto-converted sf object.
+
+BIG_GEO_META <- paste0(
+  '{"name":"nz_parcels","title":"Parcels","source":"LINZ","namespace":"linz",',
+  '"has_geometry":true,"geometry_type":"polygon",',
+  '"bulk_export_class":"materialised","row_count_at_last_refresh":2000000}'
+)
+
+test_that("bulk-routed eolas_get(geometry = FALSE) strips the geometry column", {
+  seen <- list()
+  res <- with_mocked_bindings(
+    {
+      set_test_key()
+      with_mocked_bindings(
+        eolas_get("nz_parcels", geometry = FALSE),
+        .eolas_use_streaming = function() FALSE,
+        eolas_http_perform = function(req) httr2_mock_resp(BIG_GEO_META),
+        .package = "eolas"
+      )
+    },
+    eolas_get_local = function(name, as_sf = NULL, ...) {
+      seen$as_sf <<- as_sf
+      data.frame(
+        parcel_id = 1L,
+        geometry_wkt = "POINT(174 -36)",
+        stringsAsFactors = FALSE
+      )
+    },
+    .package = "eolas"
+  )
+  expect_false("geometry_wkt" %in% names(res))
+  expect_true("parcel_id" %in% names(res))
+  # Must not hand back an sf object either.
+  expect_false(isTRUE(seen$as_sf))
+})
+
+test_that("bulk-routed eolas_get() keeps geometry by default", {
+  res <- with_mocked_bindings(
+    {
+      set_test_key()
+      with_mocked_bindings(
+        eolas_get("nz_parcels"),
+        .eolas_use_streaming = function() FALSE,
+        eolas_http_perform = function(req) httr2_mock_resp(BIG_GEO_META),
+        .package = "eolas"
+      )
+    },
+    eolas_get_local = function(name, as_sf = NULL, ...) {
+      data.frame(
+        parcel_id = 1L,
+        geometry_wkt = "POINT(174 -36)",
+        stringsAsFactors = FALSE
+      )
+    },
+    .package = "eolas"
+  )
+  expect_true("geometry_wkt" %in% names(res))
+})
