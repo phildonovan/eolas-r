@@ -15,6 +15,7 @@ eolas_get(
   envelope = FALSE,
   progress = NULL,
   force = FALSE,
+  geometry = TRUE,
   base_url = EOLAS_BASE_URL,
   ...
 )
@@ -62,6 +63,16 @@ drop session \code{\link[=eolas_info]{eolas_info()}} cache and re-download the o
 even when the sidecar says it is current. Ignored on the live API path
 (no row cache there). See \code{\link[=eolas_cache_clear]{eolas_cache_clear()}}.}
 
+\item{geometry}{When \code{FALSE}, ask the API to omit the \code{geometry_wkt} column.
+The column is projected away at the storage layer, so it is never read or
+transferred -- much faster and smaller on TA/RC boundary tables where you
+only want the attributes. Two-thirds of eolas datasets carry geometry, and
+on those the WKT usually dwarfs the rest of the row. Also lifts the
+whole-dataset restriction on spatial tables (geometry is one of the two
+triggers), so \code{eolas_get(name, geometry = FALSE)} can return a small
+boundary table in full. Errors if combined with \code{as_sf = TRUE}, which would
+have no geometry to convert.}
+
 \item{base_url}{Override the API base URL (useful for testing).}
 
 \item{...}{Forwarded to \code{\link[=eolas_get_local]{eolas_get_local()}} on auto-route (\code{cache_dir},
@@ -88,6 +99,10 @@ without hitting the API 413 guard.
 eolas_key("your_key")
 df <- eolas_get("nz_cpi", start = "2020-01-01")
 library(ggplot2)
-ggplot(df, aes(date, value)) + geom_line()
+ggplot(df, aes(date, value)) +
+  geom_line()
+
+# Attributes only -- skips the geometry_wkt column entirely
+tas <- eolas_get("territorial_authority_2023", geometry = FALSE)
 }
 }

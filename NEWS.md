@@ -1,3 +1,25 @@
+# eolas 1.4.0
+
+* **`eolas_get(geometry = FALSE)` omits the `geometry_wkt` column.** Two-thirds
+  of eolas datasets (1017/1536) carry geometry, and on TA/RC boundary tables the
+  WKT dwarfs the attributes you actually wanted. The column is now projected away
+  at the API's storage layer, so it is never read from S3 or transferred -- this
+  cuts I/O, not just payload. Responses carry `X-Eolas-Geometry-Omitted: true`.
+* **Whole-dataset pulls of small spatial tables now work.** Geometry was one of
+  the two triggers for the API's large-dataset guard, so
+  `eolas_get("some_boundary_table")` was diverted to a bulk download. With
+  `geometry = FALSE` the client keeps such calls on the live path, matching the
+  server's relaxed guard. The row-count trigger is unchanged -- dropping a column
+  does not reduce row count.
+* **`geometry = FALSE` is honoured on the bulk-routed path too.** A spatial table
+  over the 100k-row threshold stays blocked even with `geometry = FALSE`, so the
+  call routes to the bulk cache -- which has no server-side projection. The flag
+  was dropped at that hand-off, so the caller silently received the full
+  geometry-bearing file and, with `as_sf = NULL`, an auto-converted `sf` object.
+  Found in peer review.
+* `geometry = FALSE` with `as_sf = TRUE` now errors: there would be no geometry
+  to convert.
+
 # eolas 1.3.22
 
 * **Faster failure against an unreachable API host.** `eolas_get()` first tries
