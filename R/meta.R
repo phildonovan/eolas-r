@@ -115,12 +115,19 @@
   nzchar(cls) && cls != "none"
 }
 
-.eolas_live_pull_blocked <- function(meta) {
-  if (.eolas_meta_truthy(meta, "has_geometry")) return(TRUE)
-  gt <- .eolas_dataset_field(meta, "geometry_type", "")
-  wkt <- .eolas_dataset_field(meta, "geometry_wkt", "")
-  if (nzchar(gt) && !identical(tolower(gt), "none")) return(TRUE)
-  if (nzchar(wkt) && !identical(tolower(wkt), "none")) return(TRUE)
+# geometry = FALSE asks the API to project geometry_wkt away at the scan, which
+# is exactly the trigger the server drops from its own 413 guard -- so skip the
+# geometry checks here too. Leaving them in would keep routing attributes-only
+# pulls to a bulk download, defeating the point. The row-count trigger below
+# still applies: dropping a column does not reduce the number of rows.
+.eolas_live_pull_blocked <- function(meta, geometry = TRUE) {
+  if (!isFALSE(geometry)) {
+    if (.eolas_meta_truthy(meta, "has_geometry")) return(TRUE)
+    gt <- .eolas_dataset_field(meta, "geometry_type", "")
+    wkt <- .eolas_dataset_field(meta, "geometry_wkt", "")
+    if (nzchar(gt) && !identical(tolower(gt), "none")) return(TRUE)
+    if (nzchar(wkt) && !identical(tolower(wkt), "none")) return(TRUE)
+  }
   row_count <- suppressWarnings(as.integer(
     .eolas_dataset_field(meta, "row_count_at_last_refresh", 0L)
   ))
@@ -263,14 +270,15 @@
 # Returns the local result, or NULL to fall through to the live API path.
 .eolas_maybe_route_get_local <- function(name, as_sf = NULL, meta = TRUE,
                                          progress = NULL, force = FALSE,
-                                         base_url = EOLAS_BASE_URL, ...) {
+                                         base_url = EOLAS_BASE_URL,
+                                         geometry = TRUE, ...) {
   meta_info <- tryCatch(
     if (isTRUE(meta)) .eolas_info_cached(name, base_url = base_url) else NULL,
     error = function(e) NULL
   )
   if (is.null(meta_info) ||
       !.eolas_bulk_export_allowed(meta_info) ||
-      !.eolas_live_pull_blocked(meta_info)) {
+      !.eolas_live_pull_blocked(meta_info, geometry = geometry)) {
     return(NULL)
   }
   # Routing decision is final -- never fall back to the live /data path (413).

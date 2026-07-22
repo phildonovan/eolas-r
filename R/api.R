@@ -282,6 +282,15 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #'   drop session [eolas_info()] cache and re-download the on-disk bulk file
 #'   even when the sidecar says it is current. Ignored on the live API path
 #'   (no row cache there). See [eolas_cache_clear()].
+#' @param geometry When `FALSE`, ask the API to omit the `geometry_wkt` column.
+#'   The column is projected away at the storage layer, so it is never read or
+#'   transferred -- much faster and smaller on TA/RC boundary tables where you
+#'   only want the attributes. Two-thirds of eolas datasets carry geometry, and
+#'   on those the WKT usually dwarfs the rest of the row. Also lifts the
+#'   whole-dataset restriction on spatial tables (geometry is one of the two
+#'   triggers), so `eolas_get(name, geometry = FALSE)` can return a small
+#'   boundary table in full. Errors if combined with `as_sf = TRUE`, which would
+#'   have no geometry to convert.
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Forwarded to [eolas_get_local()] on auto-route (`cache_dir`,
 #'   `format`, `freshness`, etc.).
@@ -296,17 +305,28 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' library(ggplot2)
 #' ggplot(df, aes(date, value)) +
 #'   geom_line()
+#'
+#' # Attributes only -- skips the geometry_wkt column entirely
+#' tas <- eolas_get("territorial_authority_2023", geometry = FALSE)
 #' }
 eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
                       as_sf = NULL, as_arrow = FALSE, meta = TRUE,
                       envelope = FALSE, progress = NULL, force = FALSE,
-                      base_url = EOLAS_BASE_URL, ...) {
+                      geometry = TRUE, base_url = EOLAS_BASE_URL, ...) {
   # ---- as_arrow / as_sf conflict guard ----------------------------------------
   if (isTRUE(as_arrow) && isTRUE(as_sf)) {
     stop(
       "as_arrow = TRUE and as_sf = TRUE are mutually exclusive. ",
       "as_arrow returns an arrow::Table (no geometry materialisation); ",
       "as_sf materialises geometry as sf objects. Choose one.",
+      call. = FALSE
+    )
+  }
+  if (isFALSE(geometry) && isTRUE(as_sf)) {
+    stop(
+      "geometry = FALSE and as_sf = TRUE are contradictory. ",
+      "geometry = FALSE asks the API to omit the geometry_wkt column, ",
+      "leaving nothing for as_sf to convert. Choose one.",
       call. = FALSE
     )
   }
@@ -341,7 +361,7 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
     !isTRUE(envelope) && !isTRUE(as_arrow)) {
     routed <- .eolas_maybe_route_get_local(
       name = name, as_sf = as_sf, meta = meta, progress = progress,
-      force = force, base_url = base_url, ...
+      force = force, base_url = base_url, geometry = geometry, ...
     )
     if (!is.null(routed)) {
       return(routed)
@@ -352,13 +372,18 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   params <- list()
   if (!is.null(start)) params$start <- start
   if (!is.null(end)) params$end <- end
+  # Only send the parameter when narrowing: an explicit geometry=true is the
+  # server default, and omitting it keeps URLs (and any CDN cache keys) stable
+  # for the overwhelming majority of calls.
+  if (isFALSE(geometry)) params$geometry <- "false"
 
   meta_info <- .eolas_fetch_meta_info(name, base_url, meta)
 
   # Positive limits on large/geo datasets must reach the API -- limit=0 triggers 413.
   if (!is.null(limits$user) && limits$user > 0L &&
     is.null(start) && is.null(end) &&
-    !is.null(meta_info) && .eolas_live_pull_blocked(meta_info)) {
+    !is.null(meta_info) &&
+    .eolas_live_pull_blocked(meta_info, geometry = geometry)) {
     limits$fetch <- limits$user
   }
   params$limit <- limits$fetch
