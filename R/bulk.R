@@ -970,6 +970,13 @@ eolas_cache_clear <- function(name = NULL,
 #' @param force When `TRUE`, drop session [eolas_info()] cache and re-download
 #'   the bulk file even when the sidecar says the snapshot is current. See
 #'   [eolas_sync_bulk()] and [eolas_cache_clear()].
+#' @param geometry When `FALSE`, omit the `geometry_wkt` column. The column is
+#'   skipped at *read* time via a Parquet column projection, so its chunks are
+#'   never decoded and the whole sf/WKB conversion path is bypassed -- geometry
+#'   is typically ~95% of a spatial layer's bytes. The cached file itself is
+#'   unchanged, so a later call with `geometry = TRUE` recovers the geometry from
+#'   the same local file without re-downloading. Forces `as_sf = FALSE`, since
+#'   there is nothing left to convert.
 #' @param base_url Override the API base URL (useful for testing).
 #' @param ... Reserved for future arguments; currently ignored.
 #' @return A `data.frame`, `sf` object, or `arrow::Table`, depending on the
