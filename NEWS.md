@@ -1,3 +1,16 @@
+# eolas 1.11.0
+
+* **`eolas_pivot_longer()` / `eolas_pivot_wider()` — client-side long/wide reshape.**
+  Explicit functions (never called automatically by `eolas_get()`). They read the new
+  server-side `layout` metadata (`long`/`wide`/`feature`/`entity` plus id/value/measure
+  columns) and **refuse rather than guess** -- an error when a table has no layout
+  metadata, or a `feature`/`entity` layout, or a geometry column present (the discipline
+  that removed `eolas_plot()`). `eolas_pivot_longer()` reattaches each measure's
+  `series_id` on the melt; `eolas_pivot_wider()` aborts on non-unique
+  `(id, names_from)` keys (with a `values_fn` escape hatch) instead of silently making
+  list-columns. Both re-declare the reshaped frame's new layout so `longer`<->`wider`
+  round-trips. Version jumps 1.9.1 -> 1.11.0 to re-align with `eolas-data`.
+
 # eolas 1.9.1
 
 * **`geometry = FALSE` now skips the column at READ time, not after.** Previously
