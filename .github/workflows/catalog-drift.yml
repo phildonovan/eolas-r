@@ -30,7 +30,13 @@ jobs:
           baseline = set(base["names"])
           baseline_date = base["snapshot_date"]
 
-          with urllib.request.urlopen("https://api.eolas.fyi/v1/datasets", timeout=30) as r:
+          req = urllib.request.Request(
+              "https://api.eolas.fyi/v1/datasets",
+              # Cloudflare bot-blocks the default urllib UA (403) — every run
+              # since 2026-07-13 failed on this line. Identify honestly.
+              headers={"User-Agent": "Mozilla/5.0 (compatible; eolas-catalog-drift/1.0)"},
+          )
+          with urllib.request.urlopen(req, timeout=30) as r:
               live = json.load(r)
           live_names = {d["name"] for d in live}
 
