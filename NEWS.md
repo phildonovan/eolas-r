@@ -1,3 +1,14 @@
+# eolas (development version)
+
+* **Plan-cap truncation is now visible.** `eolas_get()` / `eolas_download()` read the
+  server's `X-Eolas-Truncated` / `X-Plan-Row-Cap` headers. A capped response now
+  warns, stamps `eolas_meta(df)$truncated` / `$row_cap`, prints `TRUNCATED` in the
+  dataset header, and says explicitly that `limit = N` on a capped slice is the
+  latest N *within* that file-order slice, not the dataset's most recent N.
+  Previously the 50k Free-plan slice was returned silently as if it were the whole
+  table. `eolas_download()` also now actually forwards `limit` (it read a
+  non-existent field and dropped it). (C22)
+
 # eolas 1.11.0
 
 * **`eolas_pivot_longer()` / `eolas_pivot_wider()` — client-side long/wide reshape.**

@@ -256,6 +256,9 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' @param limit Max rows to return. Default `NULL` requests the full dataset
 #'   (server enforces a 50,000-row cap on Free/Starter plans; Pro is unlimited).
 #'   When set and a `date` column is present, returns the **most recent** N rows.
+#'   If the server capped the window (`X-Eolas-Truncated: true`) the call warns
+#'   and stamps `eolas_meta(df)$truncated = TRUE` / `row_cap`: the rows are the
+#'   latest N *within* that file-order slice, not the dataset's most recent N.
 #' @param as_sf Convert geospatial datasets to an `sf` object (CRS = WGS84).
 #'   `NULL` (default) auto-converts when the dataset has a `geometry_wkt`
 #'   column AND the `sf` package is installed. `TRUE` forces conversion (errors
@@ -392,6 +395,12 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   df <- fetched$df
   if (!is.null(fetched$resp)) {
     meta_info <- .eolas_merge_provenance(meta_info, .eolas_provenance_from_headers(fetched$resp))
+    # Plan-cap truncation (C22): the server serves a file-order slice and says
+    # so in X-Eolas-Truncated. Warn on EVERY return path (arrow / tibble / sf)
+    # and stamp the metadata -- a silent 50k slice looks like the whole table,
+    # and limit= then picks the "latest N" from inside that slice.
+    trunc <- .eolas_warn_if_truncated(name, fetched$resp, limits$user)
+    meta_info <- .eolas_merge_truncation(meta_info, trunc)
   }
   if (!is.null(fetched$data_sources) && is.data.frame(meta_info) && nrow(meta_info) >= 1L) {
     meta_info$data_sources <- list(fetched$data_sources)
@@ -598,7 +607,7 @@ eolas_download <- function(name,
   if (!is.null(end)) params$end <- end
   if (!is.null(limit)) {
     resolved <- .eolas_resolve_fetch_limit(limit)
-    params$limit <- resolved$fetch_limit
+    params$limit <- resolved$fetch
   } else if (is.null(start) && is.null(end)) {
     params$limit <- 0L
   } else {
@@ -623,6 +632,7 @@ eolas_download <- function(name,
   show_bar <- .eolas_resolve_progress(progress, "download")
   resp <- httr2::req_perform_connection(req)
   eolas_check_status(resp)
+  .eolas_warn_if_truncated(name, resp, limit)
 
   total <- .eolas_resp_content_length(resp)
   bytes_written <- .eolas_stream_to_file(

@@ -29,7 +29,10 @@ eolas_get(
 
 \item{limit}{Max rows to return. Default \code{NULL} requests the full dataset
 (server enforces a 50,000-row cap on Free/Starter plans; Pro is unlimited).
-When set and a \code{date} column is present, returns the \strong{most recent} N rows.}
+When set and a \code{date} column is present, returns the \strong{most recent} N rows.
+If the server capped the window (\code{X-Eolas-Truncated: true}) the call warns
+and stamps \code{eolas_meta(df)$truncated = TRUE} / \code{row_cap}: the rows are the
+latest N \emph{within} that file-order slice, not the dataset's most recent N.}
 
 \item{as_sf}{Convert geospatial datasets to an \code{sf} object (CRS = WGS84).
 \code{NULL} (default) auto-converts when the dataset has a \code{geometry_wkt}
