@@ -101,8 +101,25 @@
   NULL
 }
 
-# Row-count threshold matching the API 413 guard and the Python client.
+# Mirror of the API live-data guard (`live_pull_guard` in
+# api/app/routes/datasets.py, architecture.md 2.5.4c, 2026-08-30) and the
+# Python client. Unless a *real* date filter (start/end on a table that has a
+# date column) narrows the scan, a live pull of a dataset above this row count
+# OR carrying geometry (unless geometry = FALSE projects it away) is refused
+# with HTTP 413 -- EXCEPT for a small slice: 0 < limit <= 10,000 (the R client
+# has no `dimensions` argument; on the API a `dimensions` filter defeats the
+# slice). limit = 0, limit > 100,000 and anything between 10,000 and 100,000
+# are all refused alike; a positive limit is not a back door.
 .EOLAS_LARGE_DATASET_ROW_THRESHOLD <- 100000L
+.EOLAS_SAFE_LIVE_SLICE_ROWS <- 10000L
+
+# Exactly the server's safe-slice test: 0 < limit <= 10,000. NULL and 0 both
+# mean "whole dataset" and are not a slice.
+.eolas_live_slice_allowed <- function(limit) {
+  if (is.null(limit)) return(FALSE)
+  limit <- suppressWarnings(as.integer(limit))
+  isTRUE(limit > 0L && limit <= .EOLAS_SAFE_LIVE_SLICE_ROWS)
+}
 
 .eolas_meta_truthy <- function(meta, field) {
   if (is.null(meta) || !is.data.frame(meta) || nrow(meta) < 1L) return(FALSE)
@@ -115,12 +132,22 @@
   nzchar(cls) && cls != "none"
 }
 
+# TRUE when a live /data pull of `meta` with no date bounds would be a 413:
+# the dataset is large or spatial AND the request is not a safe slice
+# (`limit`; NULL = unbounded, which is what bulk routing asks about).
+#
 # geometry = FALSE asks the API to project geometry_wkt away at the scan, which
 # is exactly the trigger the server drops from its own 413 guard -- so skip the
 # geometry checks here too. Leaving them in would keep routing attributes-only
 # pulls to a bulk download, defeating the point. The row-count trigger below
 # still applies: dropping a column does not reduce the number of rows.
-.eolas_live_pull_blocked <- function(meta, geometry = TRUE) {
+#
+# Callers applying a real start/end date filter must not consult this at all:
+# a binding date filter is pushed into the Iceberg scan and skips the guard
+# server-side. (start/end on a date-less table does NOT count -- the server
+# 400s that; this client strips them first, with a warning.)
+.eolas_live_pull_blocked <- function(meta, geometry = TRUE, limit = NULL) {
+  if (.eolas_live_slice_allowed(limit)) return(FALSE)
   if (!isFALSE(geometry)) {
     if (.eolas_meta_truthy(meta, "has_geometry")) return(TRUE)
     gt <- .eolas_dataset_field(meta, "geometry_type", "")

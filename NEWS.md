@@ -15,6 +15,15 @@
   artifact already on disk is reported as `"unchanged"` with no body download. New
   `freshness_resolved` result field and sidecar `head_snapshot_id` /
   `freshness_resolved` fields. (C23)
+* **Client mirror of the live-data 413 guard matches the server rule (2026-08-30).**
+  On a >100,000-row or geometry table with no `start`/`end` date filter the API
+  now serves a live pull only as a slice of `0 < limit <= 10000` rows; `NULL`,
+  `0` and anything larger are refused alike (a positive `limit` was never a
+  server-side back door). `.eolas_live_pull_blocked()` gains `limit =` and the new
+  `.eolas_live_slice_allowed()` encodes the exception, so
+  `eolas_get(name, limit = 50000)` on such a table is served from the bulk cache
+  and trimmed client-side instead of erroring with 413. `eolas_download()` docs
+  corrected: only `1..10000` is accepted on those tables. (C2/C3 client mirror)
 
 # eolas 1.11.0
 

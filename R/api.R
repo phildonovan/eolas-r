@@ -245,7 +245,8 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #' source-tagged results and a nicer print output.
 #'
 #' Hits the live `/v1/datasets/{name}/data` endpoint for slices and smaller
-#' datasets.  Whole-dataset pulls on large or geospatial tables are
+#' datasets.  Pulls on large or geospatial tables that are not a bounded
+#' slice (`limit` of at most 10,000 rows, or a `start`/`end` date filter) are
 #' **auto-routed** to [eolas_get_local()] (CDN-backed Parquet/GeoParquet) --
 #' so `eolas_get("nz_addresses")` and `eolas_get_linz("nz_addresses")` work
 #' without hitting the API 413 guard.
@@ -259,6 +260,10 @@ eolas_info <- function(name, base_url = EOLAS_BASE_URL) {
 #'   If the server capped the window (`X-Eolas-Truncated: true`) the call warns
 #'   and stamps `eolas_meta(df)$truncated = TRUE` / `row_cap`: the rows are the
 #'   latest N *within* that file-order slice, not the dataset's most recent N.
+#'   On large (>100,000-row) or geometry tables without `start`/`end` the live
+#'   API only serves a slice of at most 10,000 rows; `NULL`, `0` and larger
+#'   limits are refused with HTTP 413, so `eolas_get()` serves them from the
+#'   bulk cache ([eolas_get_local()]) and applies the limit client-side.
 #' @param as_sf Convert geospatial datasets to an `sf` object (CRS = WGS84).
 #'   `NULL` (default) auto-converts when the dataset has a `geometry_wkt`
 #'   column AND the `sf` package is installed. `TRUE` forces conversion (errors
@@ -359,14 +364,26 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
     end <- resolved$end
   }
 
-  # Whole-dataset pull on large/geo tables -> bulk cache (mirrors Python get()).
-  if (is.null(start) && is.null(end) && is.null(limit) &&
+  # Non-slice pull on large/geo tables -> bulk cache (mirrors Python get()).
+  # Matches the API 413 guard (architecture.md 2.5.4c): with no start/end on a
+  # >100k-row or geometry dataset, only a slice of 0 < limit <= 10,000 rows is
+  # served live; limit = NULL, limit = 0 and any bigger limit are refused
+  # alike. Serve those from eolas_get_local() and apply the limit client-side
+  # with eolas_get()'s usual most-recent-N semantics.
+  if (is.null(start) && is.null(end) && !.eolas_live_slice_allowed(limit) &&
     !isTRUE(envelope) && !isTRUE(as_arrow)) {
     routed <- .eolas_maybe_route_get_local(
       name = name, as_sf = as_sf, meta = meta, progress = progress,
       force = force, base_url = base_url, geometry = geometry, ...
     )
     if (!is.null(routed)) {
+      if (!is.null(limits$user) && limits$user > 0L) {
+        if ("date" %in% names(routed)) {
+          routed <- routed[order(routed$date), , drop = FALSE]
+          rownames(routed) <- NULL
+        }
+        routed <- .eolas_apply_row_limit(routed, limits$user)
+      }
       return(routed)
     }
   }
@@ -383,6 +400,9 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
   meta_info <- .eolas_fetch_meta_info(name, base_url, meta)
 
   # Positive limits on large/geo datasets must reach the API -- limit=0 triggers 413.
+  # Only a safe slice (<= 10,000) gets here on such a table without start/end:
+  # anything bigger was routed to bulk above, or (envelope / as_arrow / no bulk
+  # export) is left to the server's 413, whose message names the options.
   if (!is.null(limits$user) && limits$user > 0L &&
     is.null(start) && is.null(end) &&
     !is.null(meta_info) &&
@@ -564,7 +584,11 @@ eolas_get <- function(name, start = NULL, end = NULL, limit = NULL,
 #' @param start ISO date lower bound. Optional.
 #' @param end ISO date upper bound. Optional.
 #' @param limit Max rows. `NULL` (default) requests the full dataset (subject
-#'   to plan caps).
+#'   to plan caps). This is the **live** path and does not auto-route: on a
+#'   large (more than 100,000 rows) or geometry table without a `start`/`end`
+#'   date filter the API only accepts `1..10000`; `NULL`, `0` and anything
+#'   larger are refused with
+#'   HTTP 413 -- use [eolas_download_bulk()] or [eolas_get()] for those.
 #' @param progress Download progress bar control (`"download"` phase only).
 #'   `NULL` auto-detects in interactive sessions; suppressed by
 #'   `EOLAS_NO_PROGRESS=1`.

@@ -27,7 +27,11 @@ eolas_download(
 \item{end}{ISO date upper bound. Optional.}
 
 \item{limit}{Max rows. \code{NULL} (default) requests the full dataset (subject
-to plan caps).}
+to plan caps). This is the \strong{live} path and does not auto-route: on a
+large (more than 100,000 rows) or geometry table without a \code{start}/\code{end}
+date filter the API only accepts \verb{1..10000}; \code{NULL}, \code{0} and anything
+larger are refused with
+HTTP 413 -- use \code{\link[=eolas_download_bulk]{eolas_download_bulk()}} or \code{\link[=eolas_get]{eolas_get()}} for those.}
 
 \item{progress}{Download progress bar control (\code{"download"} phase only).
 \code{NULL} auto-detects in interactive sessions; suppressed by
