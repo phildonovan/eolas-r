@@ -1,3 +1,30 @@
+# eolas (development version)
+
+* **Plan-cap truncation is now visible.** `eolas_get()` / `eolas_download()` read the
+  server's `X-Eolas-Truncated` / `X-Plan-Row-Cap` headers. A capped response now
+  warns, stamps `eolas_meta(df)$truncated` / `$row_cap`, prints `TRUNCATED` in the
+  dataset header, and says explicitly that `limit = N` on a capped slice is the
+  latest N *within* that file-order slice, not the dataset's most recent N.
+  Previously the 50k Free-plan slice was returned silently as if it were the whole
+  table. `eolas_download()` also now actually forwards `limit` (it read a
+  non-existent field and dropped it). (C22)
+* **`eolas_sync_bulk()` stamps the snapshot actually received.** The sidecar and
+  `current_snapshot_id` now come from `X-Snapshot-Version` on the final GET response
+  (after any 302 to the monthly artifact), not from the HEAD, which reports the live
+  id even when the live artifact is not materialised. A redirect that lands on the
+  artifact already on disk is reported as `"unchanged"` with no body download. New
+  `freshness_resolved` result field and sidecar `head_snapshot_id` /
+  `freshness_resolved` fields. (C23)
+* **Client mirror of the live-data 413 guard matches the server rule (2026-08-30).**
+  On a >100,000-row or geometry table with no `start`/`end` date filter the API
+  now serves a live pull only as a slice of `0 < limit <= 10000` rows; `NULL`,
+  `0` and anything larger are refused alike (a positive `limit` was never a
+  server-side back door). `.eolas_live_pull_blocked()` gains `limit =` and the new
+  `.eolas_live_slice_allowed()` encodes the exception, so
+  `eolas_get(name, limit = 50000)` on such a table is served from the bulk cache
+  and trimmed client-side instead of erroring with 413. `eolas_download()` docs
+  corrected: only `1..10000` is accepted on those tables. (C2/C3 client mirror)
+
 # eolas 1.11.0
 
 * **`eolas_pivot_longer()` / `eolas_pivot_wider()` — client-side long/wide reshape.**

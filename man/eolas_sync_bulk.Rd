@@ -47,6 +47,9 @@ A named list with the same fields as Python's \code{SyncResult}:
 \item{\code{current_snapshot_id}}{Snapshot id from the server}
 \item{\code{path}}{Normalised path to the data file}
 \item{\code{bytes_downloaded}}{Bytes written (0 when unchanged)}
+\item{\code{freshness_resolved}}{\code{"current"} or \code{"monthly"} -- which artifact the
+server actually served (read from the final GET after redirects); \code{NULL}
+when unchanged or on an old server}
 }
 }
 \description{
@@ -79,12 +82,12 @@ eolas_key("your_key")
 
 # First call: full download
 r <- eolas_sync_bulk("nz_cpi", path = "nz_cpi.parquet")
-r$status           # "downloaded"
+r$status # "downloaded"
 r$bytes_downloaded # e.g. 2100000
 
 # Second call (same snapshot): no network I/O on the data file
 r <- eolas_sync_bulk("nz_cpi", path = "nz_cpi.parquet")
-r$status           # "unchanged"
+r$status # "unchanged"
 r$bytes_downloaded # 0
 
 # Poll for updates in a long-running script

@@ -336,3 +336,98 @@ test_that(".eolas_arrow_wkb_to_sf errors clearly on missing geometry column", {
   arrow::write_parquet(arrow::arrow_table(x = 1:3), tmp)
   expect_error(eolas:::.eolas_arrow_wkb_to_sf(tmp), "no 'geometry' column")
 })
+# ---------------------------------------------------------------------------
+# C23 -- stamp the snapshot id of the artifact actually RECEIVED, not HEAD's
+# ---------------------------------------------------------------------------
+
+SNAPSHOT_MONTHLY <- "1111111111111111111"
+
+# HEAD says `head_sid` (live); the GET (after the server's 302 to the monthly
+# artifact, which httr2 follows transparently) lands on SNAPSHOT_MONTHLY.
+with_mock_sync_redirected <- function(head_sid, bulk_body = FAKE_PARQUET, code) {
+  set_test_key()
+  call_count <- 0L
+  with_mocked_bindings(
+    code,
+    .eolas_use_streaming = function() FALSE,
+    eolas_http_perform = function(req) {
+      call_count <<- call_count + 1L
+      if (call_count == 1L) {
+        httr2_mock_resp(BULK_DATASET_META, 200L)
+      } else if (call_count == 2L) {
+        httr2_mock_head_resp(head_sid)
+      } else {
+        httr2_mock_resp_raw(
+          bulk_body, 200L, "application/octet-stream",
+          extra_headers = list(
+            `X-Snapshot-Version` = SNAPSHOT_MONTHLY,
+            `X-Freshness`        = "monthly"
+          )
+        )
+      }
+    },
+    .package = "eolas"
+  )
+}
+
+test_that("eolas_sync_bulk stamps the received snapshot id, not the HEAD id", {
+  tmp  <- withr::local_tempdir()
+  dest <- file.path(tmp, "nz_cpi.parquet")
+
+  with_mock_sync_redirected(SNAPSHOT_V2, code = {
+    result <- eolas_sync_bulk("nz_cpi", path = dest)
+    expect_equal(result$status, "downloaded")
+    expect_equal(result$current_snapshot_id, SNAPSHOT_MONTHLY)
+    expect_equal(result$freshness_resolved, "monthly")
+    expect_equal(readBin(dest, "raw", n = length(FAKE_PARQUET)), FAKE_PARQUET)
+    sidecar_path <- paste0(normalizePath(dest, mustWork = FALSE), ".eolas-meta.json")
+    meta <- jsonlite::fromJSON(readLines(sidecar_path, warn = FALSE))
+    expect_equal(meta$snapshot_id, SNAPSHOT_MONTHLY)
+    expect_equal(meta$head_snapshot_id, SNAPSHOT_V2)
+    expect_equal(meta$freshness_resolved, "monthly")
+  })
+})
+
+test_that("eolas_sync_bulk: redirect onto the artifact already held is 'unchanged'", {
+  tmp  <- withr::local_tempdir()
+  dest <- file.path(tmp, "nz_cpi.parquet")
+  writeBin(FAKE_PARQUET, dest)
+  write_test_sidecar(dest, SNAPSHOT_MONTHLY)
+
+  with_mock_sync_redirected(SNAPSHOT_V2, bulk_body = FAKE_PARQUET_V2, code = {
+    result <- eolas_sync_bulk("nz_cpi", path = dest)
+    expect_equal(result$status, "unchanged")
+    expect_equal(result$bytes_downloaded, 0L)
+    expect_equal(result$current_snapshot_id, SNAPSHOT_MONTHLY)
+    expect_equal(result$previous_snapshot_id, SNAPSHOT_MONTHLY)
+    expect_equal(readBin(dest, "raw", n = length(FAKE_PARQUET)), FAKE_PARQUET)
+    sidecar_path <- paste0(normalizePath(dest, mustWork = FALSE), ".eolas-meta.json")
+    meta <- jsonlite::fromJSON(readLines(sidecar_path, warn = FALSE))
+    expect_equal(meta$snapshot_id, SNAPSHOT_MONTHLY)
+  })
+})
+
+test_that("eolas_sync_bulk force = TRUE re-downloads through the redirect", {
+  tmp  <- withr::local_tempdir()
+  dest <- file.path(tmp, "nz_cpi.parquet")
+  writeBin(FAKE_PARQUET, dest)
+  write_test_sidecar(dest, SNAPSHOT_MONTHLY)
+
+  with_mock_sync_redirected(SNAPSHOT_V2, bulk_body = FAKE_PARQUET_V2, code = {
+    result <- eolas_sync_bulk("nz_cpi", path = dest, force = TRUE)
+    expect_equal(result$status, "updated")
+    expect_equal(result$current_snapshot_id, SNAPSHOT_MONTHLY)
+    expect_equal(readBin(dest, "raw", n = length(FAKE_PARQUET_V2)), FAKE_PARQUET_V2)
+  })
+})
+
+test_that("eolas_sync_bulk keeps the HEAD id when the GET carries no snapshot header", {
+  tmp  <- withr::local_tempdir()
+  dest <- file.path(tmp, "nz_cpi.parquet")
+
+  with_mock_sync(SNAPSHOT_V1, code = {
+    result <- eolas_sync_bulk("nz_cpi", path = dest)
+    expect_equal(result$current_snapshot_id, SNAPSHOT_V1)
+    expect_null(result$freshness_resolved)
+  })
+})

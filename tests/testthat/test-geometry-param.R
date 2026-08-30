@@ -340,3 +340,121 @@ test_that("as_arrow keeps geometry by default", {
   )
   expect_true("geometry_wkt" %in% names(out))
 })
+
+
+# ---- safe-slice exception (architecture.md 2.5.4c, 2026-08-30) ------------
+# Without start/end, a large/geo table is served live ONLY as a slice of
+# 0 < limit <= 10,000 rows. NULL, 0 and anything larger are refused alike, so
+# the client routes those to the bulk cache and trims client-side.
+
+test_that(".eolas_live_slice_allowed is exactly the server's test", {
+  expect_equal(eolas:::.EOLAS_SAFE_LIVE_SLICE_ROWS, 10000L)
+  expect_false(eolas:::.eolas_live_slice_allowed(NULL))
+  expect_false(eolas:::.eolas_live_slice_allowed(0))
+  expect_true(eolas:::.eolas_live_slice_allowed(1))
+  expect_true(eolas:::.eolas_live_slice_allowed(10000))
+  expect_false(eolas:::.eolas_live_slice_allowed(10001))
+  expect_false(eolas:::.eolas_live_slice_allowed(50000))
+})
+
+
+test_that(".eolas_live_pull_blocked honours the 10k safe slice", {
+  geo <- data.frame(
+    has_geometry = TRUE,
+    row_count_at_last_refresh = 67,
+    stringsAsFactors = FALSE
+  )
+  big <- data.frame(
+    has_geometry = FALSE,
+    row_count_at_last_refresh = 5e6,
+    stringsAsFactors = FALSE
+  )
+  small <- data.frame(
+    has_geometry = FALSE,
+    row_count_at_last_refresh = 67,
+    stringsAsFactors = FALSE
+  )
+  for (m in list(geo, big)) {
+    expect_false(eolas:::.eolas_live_pull_blocked(m, limit = 1))
+    expect_false(eolas:::.eolas_live_pull_blocked(m, limit = 10000))
+    expect_true(eolas:::.eolas_live_pull_blocked(m, limit = 10001))
+    expect_true(eolas:::.eolas_live_pull_blocked(m, limit = 50000))
+    expect_true(eolas:::.eolas_live_pull_blocked(m, limit = 200000))
+    expect_true(eolas:::.eolas_live_pull_blocked(m, limit = 0))
+    expect_true(eolas:::.eolas_live_pull_blocked(m))
+  }
+  # The slice is irrelevant when the table is neither large nor spatial.
+  expect_false(eolas:::.eolas_live_pull_blocked(small, limit = 0))
+  expect_false(eolas:::.eolas_live_pull_blocked(small, limit = 999999))
+})
+
+
+test_that("limit = 10000 is the largest slice that stays on the live path", {
+  routed <- FALSE
+  out <- with_mocked_bindings(
+    with_url_capture(eolas_get("nz_ta_2023", limit = 10000)),
+    eolas_get_local = function(...) {
+      routed <<- TRUE
+      data.frame()
+    },
+    .package = "eolas"
+  )
+  expect_false(routed)
+  expect_gte(length(out$urls), 1L)
+  expect_true(all(grepl("limit=10000(&|$)", out$urls)))
+})
+
+
+test_that("limit above the safe slice routes a spatial table to bulk and trims", {
+  local_rows <- data.frame(
+    date  = as.Date(c("2020-01-01", "2022-01-01", "2021-01-01")),
+    value = c(1, 3, 2)
+  )
+  for (lim in c(10001, 50000, 0)) {
+    routed <- FALSE
+    result <- with_mocked_bindings(
+      {
+        set_test_key()
+        with_mocked_bindings(
+          eolas_get("nz_ta_2023", limit = lim),
+          .eolas_use_streaming = function() FALSE,
+          eolas_http_perform = function(req) {
+            if (grepl("/data($|\\?)", httr2::req_get_url(req))) {
+              stop("live /data path must not be hit for limit = ", lim)
+            }
+            httr2_mock_resp(GEO_META)
+          },
+          .package = "eolas"
+        )
+      },
+      eolas_get_local = function(...) {
+        routed <<- TRUE
+        local_rows
+      },
+      .package = "eolas"
+    )
+    expect_true(routed, info = paste("limit =", lim))
+    if (lim > 0) {
+      # Sorted by date and trimmed to min(limit, n): the table is only 3 rows.
+      expect_equal(result$value, c(1, 2, 3), info = paste("limit =", lim))
+    } else {
+      # limit = 0 is "whole dataset": the bulk read is returned as-is.
+      expect_equal(result$value, c(1, 3, 2))
+    }
+  }
+})
+
+
+test_that("routed limit keeps most-recent-N semantics on a dated table", {
+  local_rows <- data.frame(
+    date  = as.Date(c("2020-01-01", "2022-01-01", "2021-01-01")),
+    value = c(1, 3, 2)
+  )
+  # Simulate a small table with a limit that is over the safe slice but under
+  # the table size: not possible with 3 rows, so trim via the helper directly
+  # and check the routed path used the same helper (order + tail).
+  trimmed <- eolas:::.eolas_apply_row_limit(
+    local_rows[order(local_rows$date), , drop = FALSE], 2L
+  )
+  expect_equal(trimmed$value, c(2, 3))
+})

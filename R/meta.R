@@ -101,8 +101,25 @@
   NULL
 }
 
-# Row-count threshold matching the API 413 guard and the Python client.
+# Mirror of the API live-data guard (`live_pull_guard` in
+# api/app/routes/datasets.py, architecture.md 2.5.4c, 2026-08-30) and the
+# Python client. Unless a *real* date filter (start/end on a table that has a
+# date column) narrows the scan, a live pull of a dataset above this row count
+# OR carrying geometry (unless geometry = FALSE projects it away) is refused
+# with HTTP 413 -- EXCEPT for a small slice: 0 < limit <= 10,000 (the R client
+# has no `dimensions` argument; on the API a `dimensions` filter defeats the
+# slice). limit = 0, limit > 100,000 and anything between 10,000 and 100,000
+# are all refused alike; a positive limit is not a back door.
 .EOLAS_LARGE_DATASET_ROW_THRESHOLD <- 100000L
+.EOLAS_SAFE_LIVE_SLICE_ROWS <- 10000L
+
+# Exactly the server's safe-slice test: 0 < limit <= 10,000. NULL and 0 both
+# mean "whole dataset" and are not a slice.
+.eolas_live_slice_allowed <- function(limit) {
+  if (is.null(limit)) return(FALSE)
+  limit <- suppressWarnings(as.integer(limit))
+  isTRUE(limit > 0L && limit <= .EOLAS_SAFE_LIVE_SLICE_ROWS)
+}
 
 .eolas_meta_truthy <- function(meta, field) {
   if (is.null(meta) || !is.data.frame(meta) || nrow(meta) < 1L) return(FALSE)
@@ -115,12 +132,22 @@
   nzchar(cls) && cls != "none"
 }
 
+# TRUE when a live /data pull of `meta` with no date bounds would be a 413:
+# the dataset is large or spatial AND the request is not a safe slice
+# (`limit`; NULL = unbounded, which is what bulk routing asks about).
+#
 # geometry = FALSE asks the API to project geometry_wkt away at the scan, which
 # is exactly the trigger the server drops from its own 413 guard -- so skip the
 # geometry checks here too. Leaving them in would keep routing attributes-only
 # pulls to a bulk download, defeating the point. The row-count trigger below
 # still applies: dropping a column does not reduce the number of rows.
-.eolas_live_pull_blocked <- function(meta, geometry = TRUE) {
+#
+# Callers applying a real start/end date filter must not consult this at all:
+# a binding date filter is pushed into the Iceberg scan and skips the guard
+# server-side. (start/end on a date-less table does NOT count -- the server
+# 400s that; this client strips them first, with a warning.)
+.eolas_live_pull_blocked <- function(meta, geometry = TRUE, limit = NULL) {
+  if (.eolas_live_slice_allowed(limit)) return(FALSE)
   if (!isFALSE(geometry)) {
     if (.eolas_meta_truthy(meta, "has_geometry")) return(TRUE)
     gt <- .eolas_dataset_field(meta, "geometry_type", "")
@@ -238,6 +265,73 @@
   out
 }
 
+# Plan-cap truncation contract (C22). The server sets X-Eolas-Truncated: true
+# (plus X-Plan-Row-Cap / X-Plan) when the caller's plan capped the row window
+# below what was requested. Returns list() when the header is absent (old
+# server / bulk path), otherwise list(truncated =, row_cap =, plan =).
+.eolas_truncation_from_headers <- function(resp) {
+  if (is.null(resp)) return(list())
+  raw <- tryCatch(httr2::resp_header(resp, "X-Eolas-Truncated"), error = function(e) NULL)
+  if (is.null(raw)) return(list())
+  out <- list(truncated = identical(tolower(trimws(raw)), "true"))
+  cap <- tryCatch(httr2::resp_header(resp, "X-Plan-Row-Cap"), error = function(e) NULL)
+  if (!is.null(cap)) {
+    cap_int <- suppressWarnings(as.integer(cap))
+    out$row_cap <- if (is.na(cap_int)) NA_integer_ else cap_int
+  }
+  plan <- tryCatch(httr2::resp_header(resp, "X-Plan"), error = function(e) NULL)
+  if (!is.null(plan) && nzchar(plan)) out$plan <- plan
+  out
+}
+
+# Stamp truncated / row_cap onto the one-row metadata tibble so a capped slice
+# is never presented as the full dataset. Creates the tibble when meta = FALSE.
+.eolas_merge_truncation <- function(meta_info, trunc) {
+  if (length(trunc) == 0L) return(meta_info)
+  if (is.null(meta_info) || !is.data.frame(meta_info) || nrow(meta_info) < 1L) {
+    meta_info <- tibble::tibble(.rows = 1L)
+  }
+  meta_info$truncated <- isTRUE(trunc$truncated)
+  if (isTRUE(trunc$truncated)) {
+    meta_info$row_cap <- if (is.null(trunc$row_cap)) NA_integer_ else trunc$row_cap
+  }
+  meta_info
+}
+
+# Warn (cli) when a /data response was capped by the plan. `user_limit` is the
+# caller's limit= so the message can say the "latest N" came from inside the
+# capped slice, not from the dataset.
+.eolas_warn_if_truncated <- function(name, resp, user_limit = NULL) {
+  trunc <- .eolas_truncation_from_headers(resp)
+  if (!isTRUE(trunc$truncated)) return(invisible(trunc))
+  cap <- trunc$row_cap
+  cap_txt <- if (!is.null(cap) && !is.na(cap)) {
+    paste0(format(cap, big.mark = ","), " rows")
+  } else {
+    "the plan row cap"
+  }
+  plan_txt <- if (!is.null(trunc$plan)) paste0(" (", trunc$plan, " plan)") else ""
+  msgs <- c(
+    "!" = paste0(
+      "{.val {name}}: response truncated to ", cap_txt, plan_txt,
+      ". This is a file-order slice, NOT the full dataset."
+    )
+  )
+  if (!is.null(user_limit) && user_limit > 0L) {
+    msgs <- c(msgs, "!" = paste0(
+      "{.code limit = ", user_limit, "} returned the latest rows WITHIN that slice, ",
+      "not the dataset's most recent rows."
+    ))
+  }
+  msgs <- c(msgs, "i" = paste0(
+    "Check {.code eolas_meta(df)$truncated}. Use {.code start=}/{.code end=} to narrow, ",
+    "{.fn eolas_get_local} / {.fn eolas_sync_bulk} for the whole table, ",
+    "or upgrade at {.url https://eolas.fyi/pricing}."
+  ))
+  cli::cli_warn(msgs)
+  invisible(trunc)
+}
+
 .eolas_merge_provenance <- function(meta_info, provenance) {
   if (length(provenance) == 0L) return(meta_info)
   if (is.null(meta_info) || !is.data.frame(meta_info) || nrow(meta_info) < 1L) {
@@ -317,6 +411,14 @@
   if (nzchar(title)) parts <- c(parts, title)
   cadence <- if ("refresh_cadence" %in% names(meta)) meta$refresh_cadence[[1]] %||% "" else ""
   if (nzchar(cadence)) parts <- c(parts, paste0("refreshed ", cadence))
+  if ("truncated" %in% names(meta) && isTRUE(meta$truncated[[1]])) {
+    cap <- if ("row_cap" %in% names(meta)) meta$row_cap[[1]] else NA
+    parts <- c(parts, if (!is.null(cap) && !is.na(cap)) {
+      paste0("TRUNCATED to ", format(cap, big.mark = ","), " rows by plan cap")
+    } else {
+      "TRUNCATED by plan cap"
+    })
+  }
   if (length(parts)) cli::cli_text(paste(parts, collapse = " \u00b7 "))
   invisible()
 }

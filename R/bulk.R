@@ -500,17 +500,37 @@ eolas_download_bulk <- function(name,
   )
 }
 
-.write_sidecar <- function(sidecar_path, name, snapshot_id, fmt, freshness, source_url) {
+.write_sidecar <- function(sidecar_path, name, snapshot_id, fmt, freshness, source_url,
+                           head_snapshot_id = snapshot_id, freshness_resolved = NULL) {
   data <- list(
-    schema_version = .SIDECAR_SCHEMA_VERSION,
-    name           = name,
-    snapshot_id    = snapshot_id,
-    format         = fmt,
-    freshness      = freshness,
+    schema_version     = .SIDECAR_SCHEMA_VERSION,
+    name               = name,
+    snapshot_id        = snapshot_id,
+    head_snapshot_id   = head_snapshot_id,
+    freshness_resolved = freshness_resolved,
+    format             = fmt,
+    freshness          = freshness,
     downloaded_at  = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
     source_url     = source_url
   )
   writeLines(jsonlite::toJSON(data, auto_unbox = TRUE, pretty = TRUE), sidecar_path)
+}
+
+# Snapshot id + resolved freshness of the artifact actually SERVED (C23).
+# Read from the final GET response after redirects: for freshness=current the
+# server may 302 to the monthly artifact when the live one is not materialised,
+# so the HEAD id (live) is not what lands on disk. Returns list(snapshot_id =
+# "" when absent, freshness_resolved = NULL when absent).
+.received_snapshot_info <- function(resp) {
+  hdr <- function(key) {
+    v <- tryCatch(httr2::resp_header(resp, key), error = function(e) NULL)
+    if (is.null(v) || !nzchar(v)) NULL else v
+  }
+  list(
+    snapshot_id        = hdr("X-Snapshot-Version") %||% "",
+    freshness_resolved = hdr("X-Eolas-Freshness-Resolved") %||%
+      hdr("X-Freshness-Fallback") %||% hdr("X-Freshness")
+  )
 }
 
 # HEAD the bulk endpoint to read X-Snapshot-Version without downloading data.
@@ -594,6 +614,9 @@ eolas_download_bulk <- function(name,
 #'   \item{`current_snapshot_id`}{Snapshot id from the server}
 #'   \item{`path`}{Normalised path to the data file}
 #'   \item{`bytes_downloaded`}{Bytes written (0 when unchanged)}
+#'   \item{`freshness_resolved`}{`"current"` or `"monthly"` -- which artifact the
+#'     server actually served (read from the final GET after redirects); `NULL`
+#'     when unchanged or on an old server}
 #' }
 #' @export
 #' @examples
@@ -666,7 +689,12 @@ eolas_sync_bulk <- function(name,
   # ---- HEAD to get X-Snapshot-Version cheaply -------------------------------
   key <- eolas_get_key_internal()
   bulk_url <- paste0(base_url, "/v1/bulk/", namespace, "/", table)
-  current_sid <- .head_snapshot_version(bulk_url, query, key)
+  # NB (C23): for freshness=current the HEAD reports the *live* snapshot id,
+  # but the GET may 302 to the monthly artifact when the live one has not been
+  # materialised. The HEAD id is only a cheap "maybe changed" signal -- the id
+  # stamped in the sidecar is always taken from the final GET response below.
+  head_sid <- .head_snapshot_version(bulk_url, query, key)
+  current_sid <- head_sid
 
   # ---- no-op fast path ------------------------------------------------------
   prev_sid <- if (!is.null(prev)) prev$snapshot_id %||% NA_character_ else NA_character_
@@ -736,6 +764,33 @@ eolas_sync_bulk <- function(name,
     eolas_check_status(conn_resp)
   }
 
+  # ---- stamp what we actually RECEIVED, not what HEAD advertised -----------
+  received <- .received_snapshot_info(conn_resp)
+  freshness_resolved <- received$freshness_resolved
+  if (nzchar(received$snapshot_id)) current_sid <- received$snapshot_id
+  # The redirect landed on the artifact we already hold: don't pull the
+  # (possibly multi-GB) body again and don't report "updated".
+  if (!isTRUE(force) &&
+    !is.na(prev_sid) &&
+    nzchar(received$snapshot_id) &&
+    identical(prev_sid, received$snapshot_id) &&
+    file.exists(out_path)) {
+    if (use_streaming) close(conn_resp)
+    if (requireNamespace("cli", quietly = TRUE)) {
+      cli::cli_inform(c(
+        "i" = "Using cached {.file {basename(out_path)}} (up to date)."
+      ))
+    }
+    return(list(
+      status               = "unchanged",
+      previous_snapshot_id = prev_sid,
+      current_snapshot_id  = current_sid,
+      path                 = out_path,
+      bytes_downloaded     = 0L,
+      freshness_resolved   = freshness_resolved
+    ))
+  }
+
   show_bar <- .eolas_resolve_progress(progress, "download")
   total_bytes <- .eolas_resp_content_length(conn_resp)
   label <- paste0("Downloading ", basename(out_path))
@@ -772,14 +827,18 @@ eolas_sync_bulk <- function(name,
     bulk_url, "?format=", format,
     if (freshness != "auto") paste0("&freshness=", freshness) else ""
   )
-  .write_sidecar(sidecar_path, name, current_sid, format, freshness, source_url)
+  .write_sidecar(
+    sidecar_path, name, current_sid, format, freshness, source_url,
+    head_snapshot_id = head_sid, freshness_resolved = freshness_resolved
+  )
 
   list(
     status               = if (is.null(prev) || is.na(prev_sid)) "downloaded" else "updated",
     previous_snapshot_id = prev_sid,
     current_snapshot_id  = current_sid,
     path                 = out_path,
-    bytes_downloaded     = bytes_dl
+    bytes_downloaded     = bytes_dl,
+    freshness_resolved   = freshness_resolved
   )
 }
 

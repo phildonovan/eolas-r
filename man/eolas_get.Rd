@@ -29,7 +29,14 @@ eolas_get(
 
 \item{limit}{Max rows to return. Default \code{NULL} requests the full dataset
 (server enforces a 50,000-row cap on Free/Starter plans; Pro is unlimited).
-When set and a \code{date} column is present, returns the \strong{most recent} N rows.}
+When set and a \code{date} column is present, returns the \strong{most recent} N rows.
+If the server capped the window (\code{X-Eolas-Truncated: true}) the call warns
+and stamps \code{eolas_meta(df)$truncated = TRUE} / \code{row_cap}: the rows are the
+latest N \emph{within} that file-order slice, not the dataset's most recent N.
+On large (>100,000-row) or geometry tables without \code{start}/\code{end} the live
+API only serves a slice of at most 10,000 rows; \code{NULL}, \code{0} and larger
+limits are refused with HTTP 413, so \code{eolas_get()} serves them from the
+bulk cache (\code{\link[=eolas_get_local]{eolas_get_local()}}) and applies the limit client-side.}
 
 \item{as_sf}{Convert geospatial datasets to an \code{sf} object (CRS = WGS84).
 \code{NULL} (default) auto-converts when the dataset has a \code{geometry_wkt}
@@ -89,7 +96,8 @@ source-tagged results and a nicer print output.
 }
 \details{
 Hits the live \verb{/v1/datasets/\{name\}/data} endpoint for slices and smaller
-datasets.  Whole-dataset pulls on large or geospatial tables are
+datasets.  Pulls on large or geospatial tables that are not a bounded
+slice (\code{limit} of at most 10,000 rows, or a \code{start}/\code{end} date filter) are
 \strong{auto-routed} to \code{\link[=eolas_get_local]{eolas_get_local()}} (CDN-backed Parquet/GeoParquet) --
 so \code{eolas_get("nz_addresses")} and \code{eolas_get_linz("nz_addresses")} work
 without hitting the API 413 guard.
