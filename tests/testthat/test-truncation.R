@@ -130,3 +130,58 @@ test_that("eolas_get as_arrow = TRUE still warns on a capped response", {
     expect_true(inherits(tbl, "Table"))
   })
 })
+
+# eolas_download() has no client-side trim, so limit = N must reach the server
+# verbatim (not the fetch = 0 "whole table" that eolas_get() uses), and the
+# truncation warning must not claim a "latest N within the slice" trim.
+with_mock_download <- function(data_headers, code) {
+  set_test_key()
+  seen_url <- NULL
+  with_mocked_bindings(
+    code,
+    req_perform_connection = function(req, ...) {
+      seen_url <<- httr2::req_get_url(req)
+      httr2_mock_resp_headers("date,value\n2025-01-01,1\n", data_headers,
+                              content_type = "text/csv")
+    },
+    .package = "httr2"
+  )
+  seen_url
+}
+
+test_that("eolas_download sends limit = N verbatim to the server", {
+  with_mocked_bindings(
+    .eolas_resp_content_length = function(resp) NULL,
+    .eolas_stream_to_file = function(resp, dest_path, ...) 10L,
+    {
+      url <- with_mock_download(list(), {
+        expect_no_warning(
+          eolas_download("nz_cpi", path = tempfile(fileext = ".csv"), limit = 12)
+        )
+      })
+      expect_match(url, "limit=12(&|$)")
+      url <- with_mock_download(list(), {
+        eolas_download("nz_cpi", path = tempfile(fileext = ".csv"))
+      })
+      expect_match(url, "limit=0(&|$)")
+    },
+    .package = "eolas"
+  )
+})
+
+test_that("eolas_download warns on a capped response without the 'within slice' clause", {
+  with_mocked_bindings(
+    .eolas_resp_content_length = function(resp) NULL,
+    .eolas_stream_to_file = function(resp, dest_path, ...) 10L,
+    {
+      with_mock_download(CAP_HEADERS, {
+        w <- capture_warnings(
+          eolas_download("nz_cpi", path = tempfile(fileext = ".csv"), limit = 12)
+        )
+        expect_true(any(grepl("truncated to 50,000 rows", w)))
+        expect_false(any(grepl("WITHIN that slice", w)))
+      })
+    },
+    .package = "eolas"
+  )
+})

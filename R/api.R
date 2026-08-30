@@ -605,14 +605,10 @@ eolas_download <- function(name,
   params <- list(format = fmt)
   if (!is.null(start)) params$start <- start
   if (!is.null(end)) params$end <- end
-  if (!is.null(limit)) {
-    resolved <- .eolas_resolve_fetch_limit(limit)
-    params$limit <- resolved$fetch
-  } else if (is.null(start) && is.null(end)) {
-    params$limit <- 0L
-  } else {
-    params$limit <- 0L
-  }
+  # Send the caller's limit verbatim: unlike eolas_get(), download has no
+  # date-sort/trim step, so the server must do the capping (limit = 0 would
+  # write the whole table / plan slice to disk).
+  params$limit <- if (is.null(limit)) 0L else as.integer(limit)
 
   out_path <- normalizePath(path.expand(path), mustWork = FALSE)
   parent <- dirname(out_path)
@@ -632,7 +628,9 @@ eolas_download <- function(name,
   show_bar <- .eolas_resolve_progress(progress, "download")
   resp <- httr2::req_perform_connection(req)
   eolas_check_status(resp)
-  .eolas_warn_if_truncated(name, resp, limit)
+  # user_limit = NULL: the "latest N within the slice" clause only applies to
+  # eolas_get(), which trims client-side; the file holds exactly what came back.
+  .eolas_warn_if_truncated(name, resp)
 
   total <- .eolas_resp_content_length(resp)
   bytes_written <- .eolas_stream_to_file(
