@@ -99,5 +99,5 @@ repeat {
 }
 }
 \seealso{
-\code{\link{eolas_download_bulk}}, \url{https://docs.eolas.fyi/bulk-downloads/}
+\code{\link{eolas_download_bulk}}, \url{https://docs.eolas.nz/bulk-downloads/}
 }

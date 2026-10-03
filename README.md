@@ -7,7 +7,7 @@
 [![release](https://img.shields.io/github/v/tag/phildonovan/eolas-r?label=release)](https://github.com/phildonovan/eolas-r/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-R client for the [eolas.fyi](https://eolas.fyi) statistical data API — 1,500+ official New Zealand statistical & geospatial datasets, plus OECD data for international comparisons, returned as tidy data frames (or `sf` objects for geospatial layers).
+R client for the [eolas.nz](https://eolas.nz) statistical data API — 1,500+ official New Zealand statistical & geospatial datasets, plus OECD data for international comparisons, returned as tidy data frames (or `sf` objects for geospatial layers).
 
 _Coverage is New Zealand + OECD today. Australian sources are on the roadmap — not yet available; OECD data already includes Australia (and other OECD members) for cross-country comparisons._
 
@@ -100,7 +100,7 @@ meta         <- eolas_info("rbnz_m1_prices")
 ggplot(inflation, aes(date, value)) + geom_line()
 ```
 
-Get an API key at <https://eolas.fyi/signup>. Free plan is 10 requests/month; Pro ($49/month) is unlimited.
+Get an API key at <https://eolas.nz/signup>. Free plan is 10 requests/month; Pro ($49/month) is unlimited.
 
 ## Source-specific helpers
 
@@ -128,7 +128,7 @@ eolas_integration(
 )
 ```
 
-This is an Enterprise-plan feature. Non-Enterprise keys see the server's upgrade-pointer error message; the gating lives server-side so it's bypass-proof. See <https://eolas.fyi/#pricing>.
+This is an Enterprise-plan feature. Non-Enterprise keys see the server's upgrade-pointer error message; the gating lives server-side so it's bypass-proof. See <https://eolas.nz/#pricing>.
 
 ## Geospatial
 
@@ -178,10 +178,10 @@ For a columnar file straight from the REST API:
 
 ```bash
 curl -H "X-API-Key: $EOLAS_API_KEY" \
-  "https://api.eolas.fyi/v1/datasets/nz_cpi/data?format=parquet" -o nz_cpi.parquet
+  "https://api.eolas.nz/v1/datasets/nz_cpi/data?format=parquet" -o nz_cpi.parquet
 ```
 
-See the [R reference](https://docs.eolas.fyi/r/reference/) for the format benchmark.
+See the [R reference](https://docs.eolas.nz/r/reference/) for the format benchmark.
 
 ## Bulk downloads — use `eolas_get_local()` for whole datasets
 
@@ -216,7 +216,7 @@ eolas_download_bulk("treasury_fiscal_spending", path = "t.parquet")
 
 **Progress bars:** `eolas_get_local()` shows two phases in interactive sessions — a **download** byte bar while fetching from CDN, then a **read** spinner while Parquet/GeoParquet is loaded into a data frame or `sf` object (the read phase is often the slow part on multi-million-row geo datasets). Control with `progress = TRUE` (both), `FALSE` (neither), `"download"`, or `"read"`. Set `EOLAS_NO_PROGRESS=1` to suppress both in batch scripts. Cached files skip the download bar and print an informative message instead.
 
-Full docs: [docs.eolas.fyi/bulk-downloads/](https://docs.eolas.fyi/bulk-downloads/).
+Full docs: [docs.eolas.nz/bulk-downloads/](https://docs.eolas.nz/bulk-downloads/).
 
 ## Sync — always-fresh local copy
 
@@ -257,4 +257,4 @@ Rscript -e 'devtools::test()'
 ## License
 
 MIT — applies to this client software only. Dataset use is subject to each
-source's licence and your [eolas API plan](https://eolas.fyi/#pricing).
+source's licence and your [eolas API plan](https://eolas.nz/#pricing).

@@ -8,5 +8,5 @@ test_that(".eolas_default_base_url honours the EOLAS_BASE_URL env var", {
 
 test_that(".eolas_default_base_url falls back to prod when the env is unset", {
   withr::local_envvar(EOLAS_BASE_URL = NA)
-  expect_equal(.eolas_default_base_url(), "https://api.eolas.fyi")
+  expect_equal(.eolas_default_base_url(), "https://api.eolas.nz")
 })

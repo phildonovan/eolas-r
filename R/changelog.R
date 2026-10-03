@@ -35,7 +35,7 @@
   if (status == 402L) {
     cli::cli_abort(
       c("Incremental sync requires a Pro plan.",
-        i = if (nzchar(detail)) detail else "See https://eolas.fyi/pricing."
+        i = if (nzchar(detail)) detail else "See https://eolas.nz/pricing."
       ),
       class = "eolas_changes_upgrade_required"
     )

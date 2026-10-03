@@ -54,7 +54,7 @@ and \code{.env.example}. \verb{meltano install && meltano run tap-eolas target-j
 
 This is an Enterprise-plan feature. Non-Enterprise keys receive a 403
 from the server; the upgrade pointer flows through verbatim as the error
-message. See \url{https://eolas.fyi/#pricing}.
+message. See \url{https://eolas.nz/#pricing}.
 }
 \examples{
 \dontrun{

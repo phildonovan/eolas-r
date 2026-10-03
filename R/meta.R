@@ -326,7 +326,7 @@
   msgs <- c(msgs, "i" = paste0(
     "Check {.code eolas_meta(df)$truncated}. Use {.code start=}/{.code end=} to narrow, ",
     "{.fn eolas_get_local} / {.fn eolas_sync_bulk} for the whole table, ",
-    "or upgrade at {.url https://eolas.fyi/pricing}."
+    "or upgrade at {.url https://eolas.nz/pricing}."
   ))
   cli::cli_warn(msgs)
   invisible(trunc)

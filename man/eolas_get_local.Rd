@@ -140,5 +140,5 @@ tbl <- eolas_get_local("nz_parcels", as_arrow = TRUE)
 }
 }
 \seealso{
-\code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}, \code{eolas_library_set()}, \url{https://docs.eolas.fyi/bulk-downloads/}
+\code{\link[=eolas_sync_bulk]{eolas_sync_bulk()}}, \code{eolas_library_set()}, \url{https://docs.eolas.nz/bulk-downloads/}
 }

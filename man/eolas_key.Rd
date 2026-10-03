@@ -7,7 +7,7 @@
 eolas_key(key)
 }
 \arguments{
-\item{key}{An API key from \url{https://eolas.fyi/signup}.}
+\item{key}{An API key from \url{https://eolas.nz/signup}.}
 }
 \value{
 The key, invisibly.
