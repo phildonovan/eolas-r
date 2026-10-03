@@ -3,7 +3,7 @@
 # this was a hardcoded literal, so the env var was silently inert). Read at load;
 # a per-call override is still the explicit `base_url=` argument.
 .eolas_default_base_url <- function() {
-  Sys.getenv("EOLAS_BASE_URL", unset = "https://api.eolas.fyi")
+  Sys.getenv("EOLAS_BASE_URL", unset = "https://api.eolas.nz")
 }
 EOLAS_BASE_URL <- .eolas_default_base_url()
 
@@ -19,7 +19,7 @@ EOLAS_BASE_URL <- .eolas_default_base_url()
   )
   # Explicit UA: good API-client hygiene + insulation against the Cloudflare
   # edge tightening bot rules (raw default UAs can be 403'd; custom always OK).
-  paste0("eolas-r/", ver, " (r; +https://eolas.fyi)")
+  paste0("eolas-r/", ver, " (r; +https://eolas.nz)")
 }
 
 eolas_http_perform <- function(req) {
@@ -83,7 +83,7 @@ eolas_check_status <- function(resp) {
     cli::cli_abort(c(
       "Authentication error: invalid or missing API key.",
       "i" = "Check the key, or set a new one with {.fn eolas_key_save} or the {.envvar EOLAS_API_KEY} environment variable.",
-      "i" = "Get a free key at {.url https://eolas.fyi/signup}"
+      "i" = "Get a free key at {.url https://eolas.nz/signup}"
     ), call. = FALSE)
   }
   # 403 detail is passed through verbatim. Used for Enterprise-only endpoints
@@ -109,7 +109,7 @@ eolas_check_status <- function(resp) {
     if (!is.null(cfray) && is.null(limit)) {
       msg <- paste0(msg, " (Blocked at the Cloudflare edge -- cf-ray ", cfray, ".)")
     }
-    cli::cli_abort(paste0(msg, " Upgrade for higher limits: https://eolas.fyi/pricing"),
+    cli::cli_abort(paste0(msg, " Upgrade for higher limits: https://eolas.nz/pricing"),
       call. = FALSE
     )
   }

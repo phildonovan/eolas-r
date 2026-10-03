@@ -15,7 +15,7 @@
 #'
 #' This is an Enterprise-plan feature. Non-Enterprise keys receive a 403
 #' from the server; the upgrade pointer flows through verbatim as the error
-#' message. See <https://eolas.fyi/#pricing>.
+#' message. See <https://eolas.nz/#pricing>.
 #'
 #' @param platform One of `"meltano"`, `"fivetran"`, `"azure-data-factory"`.
 #' @param datasets Character vector of dataset names to include in the config.

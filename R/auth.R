@@ -31,7 +31,7 @@
 #' `EOLAS_API_KEY` environment variable or use [eolas_key_save()] to persist
 #' it to the OS keyring so you never need to call this again.
 #'
-#' @param key An API key from <https://eolas.fyi/signup>.
+#' @param key An API key from <https://eolas.nz/signup>.
 #' @return The key, invisibly.
 #' @export
 #' @examples
@@ -238,7 +238,7 @@ eolas_get_key_internal <- function() {
       "No API key found. ",
       "Call eolas_key_save() to store it in the OS keyring, ",
       "or set the EOLAS_API_KEY environment variable. ",
-      "Get a free key at https://eolas.fyi/signup",
+      "Get a free key at https://eolas.nz/signup",
       call. = FALSE
     )
   }

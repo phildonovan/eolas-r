@@ -335,7 +335,7 @@
 #' }
 #'
 #' @seealso
-#' <https://docs.eolas.fyi/bulk-downloads/>
+#' <https://docs.eolas.nz/bulk-downloads/>
 eolas_download_bulk <- function(name,
                                 freshness = "auto",
                                 format = "parquet",
@@ -403,7 +403,7 @@ eolas_download_bulk <- function(name,
     body_j <- tryCatch(httr2::resp_body_json(conn_resp), error = \(e) list())
     detail <- body_j$detail %||% paste0(
       "Bulk downloads are a Pro feature. Free accounts query datasets via the ",
-      "live API (eolas_get) -- upgrade at https://eolas.fyi/pricing."
+      "live API (eolas_get) -- upgrade at https://eolas.nz/pricing."
     )
     cli::cli_abort("Bulk upgrade required: {detail}", call. = FALSE)
   }
@@ -423,7 +423,7 @@ eolas_download_bulk <- function(name,
     detail <- body_j$detail %||% paste0(
       "Monthly bulk snapshots are still rolling out for this dataset. ",
       "Try again after the 1st of next month, or upgrade to Pro for ",
-      "on-demand current snapshots -- see https://eolas.fyi/pricing."
+      "on-demand current snapshots -- see https://eolas.nz/pricing."
     )
     cli::cli_abort("Bulk not yet available: {detail}", call. = FALSE)
   }
@@ -640,7 +640,7 @@ eolas_download_bulk <- function(name,
 #'   Sys.sleep(3600)
 #' }
 #' }
-#' @seealso \code{\link{eolas_download_bulk}}, <https://docs.eolas.fyi/bulk-downloads/>
+#' @seealso \code{\link{eolas_download_bulk}}, <https://docs.eolas.nz/bulk-downloads/>
 eolas_sync_bulk <- function(name,
                             path,
                             format = "parquet",
@@ -1064,7 +1064,7 @@ eolas_cache_clear <- function(name = NULL,
 #' # Arrow table -- zero-copy, no sf allocation; suitable for DuckDB / dplyr
 #' tbl <- eolas_get_local("nz_parcels", as_arrow = TRUE)
 #' }
-#' @seealso [eolas_sync_bulk()], `eolas_library_set()`, <https://docs.eolas.fyi/bulk-downloads/>
+#' @seealso [eolas_sync_bulk()], `eolas_library_set()`, <https://docs.eolas.nz/bulk-downloads/>
 eolas_get_local <- function(name,
                             cache_dir = NULL,
                             format = NULL,

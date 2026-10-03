@@ -96,16 +96,17 @@ test_that("HTTP 403 with licence detail raises bulk licence restricted error", {
     auto_unbox = TRUE
   )
   with_mock_bulk(body_403,
-                 bulk_status  = 403L,
-                 bulk_content = "application/json",
-                 meta_body    = oecd_meta,
-                 code = {
-    expect_error(
-      eolas_download_bulk("oecd_gdp"),
-      "Bulk licence restricted",
-      fixed = TRUE
-    )
-  })
+    bulk_status = 403L,
+    bulk_content = "application/json",
+    meta_body = oecd_meta,
+    code = {
+      expect_error(
+        eolas_download_bulk("oecd_gdp"),
+        "Bulk licence restricted",
+        fixed = TRUE
+      )
+    }
+  )
 })
 
 test_that("HTTP 503 raises bulk not yet available error", {
@@ -138,7 +139,7 @@ test_that("HTTP 404 on metadata lookup raises not found error", {
 # ---------------------------------------------------------------------------
 
 test_that("eolas_sync_bulk first download: status=downloaded, file+sidecar written", {
-  tmp  <- withr::local_tempdir()
+  tmp <- withr::local_tempdir()
   dest <- file.path(tmp, "nz_cpi.parquet")
 
   with_mock_sync(SNAPSHOT_V1, code = {
@@ -158,7 +159,7 @@ test_that("eolas_sync_bulk first download: status=downloaded, file+sidecar writt
 })
 
 test_that("eolas_sync_bulk unchanged: no file write, status=unchanged, bytes_downloaded=0", {
-  tmp  <- withr::local_tempdir()
+  tmp <- withr::local_tempdir()
   dest <- file.path(tmp, "nz_cpi.parquet")
   writeBin(FAKE_PARQUET, dest)
   write_test_sidecar(dest, SNAPSHOT_V1)
@@ -174,7 +175,7 @@ test_that("eolas_sync_bulk unchanged: no file write, status=unchanged, bytes_dow
 })
 
 test_that("eolas_sync_bulk force=TRUE re-downloads when snapshot unchanged", {
-  tmp  <- withr::local_tempdir()
+  tmp <- withr::local_tempdir()
   dest <- file.path(tmp, "nz_cpi.parquet")
   writeBin(FAKE_PARQUET, dest)
   write_test_sidecar(dest, SNAPSHOT_V1)
@@ -192,7 +193,7 @@ test_that("eolas_sync_bulk force=TRUE re-downloads when snapshot unchanged", {
 test_that("eolas_cache_clear removes cached bulk files and sidecars", {
   tmp <- withr::local_tempdir()
   parquet <- file.path(tmp, "nz_parcels.parquet")
-  geo     <- file.path(tmp, "nz_parcels.geo.parquet")
+  geo <- file.path(tmp, "nz_parcels.geo.parquet")
   writeBin(charToRaw("p"), parquet)
   writeBin(charToRaw("g"), geo)
   writeLines("{}", paste0(parquet, ".eolas-meta.json"))
@@ -200,14 +201,16 @@ test_that("eolas_cache_clear removes cached bulk files and sidecars", {
 
   cleared <- eolas_cache_clear("nz_parcels", cache_dir = tmp)
   expect_length(cleared$files, 4L)
-  expect_false(any(file.exists(c(parquet, geo, paste0(parquet, ".eolas-meta.json"),
-                                 paste0(geo, ".eolas-meta.json")))))
+  expect_false(any(file.exists(c(
+    parquet, geo, paste0(parquet, ".eolas-meta.json"),
+    paste0(geo, ".eolas-meta.json")
+  ))))
 })
 
 test_that("eolas_cache_clear with format deletes only that variant", {
   tmp <- withr::local_tempdir()
   parquet <- file.path(tmp, "nz_cpi.parquet")
-  csv     <- file.path(tmp, "nz_cpi.csv.gz")
+  csv <- file.path(tmp, "nz_cpi.csv.gz")
   writeBin(charToRaw("p"), parquet)
   writeBin(charToRaw("c"), csv)
 
@@ -219,7 +222,7 @@ test_that("eolas_cache_clear with format deletes only that variant", {
 
 test_that("eolas_cache_clear can drop session metadata without deleting files", {
   set_test_key()
-  key <- eolas:::.eolas_meta_cache_key("nz_cpi", "https://api.eolas.fyi")
+  key <- eolas:::.eolas_meta_cache_key("nz_cpi", "https://api.eolas.nz")
   local_mocked_bindings(
     eolas_info = function(n, base_url = NULL) {
       eolas:::.eolas_parse_info_response(
@@ -228,7 +231,7 @@ test_that("eolas_cache_clear can drop session metadata without deleting files", 
     },
     .package = "eolas"
   )
-  eolas:::.eolas_info_cached("nz_cpi", base_url = "https://api.eolas.fyi")
+  eolas:::.eolas_info_cached("nz_cpi", base_url = "https://api.eolas.nz")
   expect_true(exists(key, envir = eolas:::.eolas_meta_cache, inherits = FALSE))
 
   cleared <- eolas_cache_clear("nz_cpi", files = FALSE)
@@ -266,7 +269,7 @@ test_that("eolas_get force=TRUE is ignored on live API path", {
 })
 
 test_that("eolas_sync_bulk updated: file replaced, sidecar updated, status=updated", {
-  tmp  <- withr::local_tempdir()
+  tmp <- withr::local_tempdir()
   dest <- file.path(tmp, "nz_cpi.parquet")
   writeBin(FAKE_PARQUET, dest)
   write_test_sidecar(dest, SNAPSHOT_V1)
@@ -285,7 +288,7 @@ test_that("eolas_sync_bulk updated: file replaced, sidecar updated, status=updat
 })
 
 test_that("eolas_sync_bulk atomic: destination has new content after update", {
-  tmp  <- withr::local_tempdir()
+  tmp <- withr::local_tempdir()
   dest <- file.path(tmp, "nz_cpi.parquet")
   writeBin(FAKE_PARQUET, dest)
   write_test_sidecar(dest, SNAPSHOT_V1)
@@ -371,7 +374,7 @@ with_mock_sync_redirected <- function(head_sid, bulk_body = FAKE_PARQUET, code) 
 }
 
 test_that("eolas_sync_bulk stamps the received snapshot id, not the HEAD id", {
-  tmp  <- withr::local_tempdir()
+  tmp <- withr::local_tempdir()
   dest <- file.path(tmp, "nz_cpi.parquet")
 
   with_mock_sync_redirected(SNAPSHOT_V2, code = {
@@ -389,7 +392,7 @@ test_that("eolas_sync_bulk stamps the received snapshot id, not the HEAD id", {
 })
 
 test_that("eolas_sync_bulk: redirect onto the artifact already held is 'unchanged'", {
-  tmp  <- withr::local_tempdir()
+  tmp <- withr::local_tempdir()
   dest <- file.path(tmp, "nz_cpi.parquet")
   writeBin(FAKE_PARQUET, dest)
   write_test_sidecar(dest, SNAPSHOT_MONTHLY)
@@ -408,7 +411,7 @@ test_that("eolas_sync_bulk: redirect onto the artifact already held is 'unchange
 })
 
 test_that("eolas_sync_bulk force = TRUE re-downloads through the redirect", {
-  tmp  <- withr::local_tempdir()
+  tmp <- withr::local_tempdir()
   dest <- file.path(tmp, "nz_cpi.parquet")
   writeBin(FAKE_PARQUET, dest)
   write_test_sidecar(dest, SNAPSHOT_MONTHLY)
@@ -422,7 +425,7 @@ test_that("eolas_sync_bulk force = TRUE re-downloads through the redirect", {
 })
 
 test_that("eolas_sync_bulk keeps the HEAD id when the GET carries no snapshot header", {
-  tmp  <- withr::local_tempdir()
+  tmp <- withr::local_tempdir()
   dest <- file.path(tmp, "nz_cpi.parquet")
 
   with_mock_sync(SNAPSHOT_V1, code = {

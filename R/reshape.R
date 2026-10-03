@@ -78,7 +78,7 @@
     cli::cli_abort(c(
       "Cannot reshape {.val {ds_name}}: no {.field layout} metadata.",
       "i" = "eolas refuses to guess a date/period/value shape from column names -- this is exactly the silent-wrongness class {.fn eolas_plot} was removed for in v1.3.0.",
-      "i" = "See {.url https://docs.eolas.fyi} for the layout contract."
+      "i" = "See {.url https://docs.eolas.nz} for the layout contract."
     ))
   }
   layout <- tolower(layout)

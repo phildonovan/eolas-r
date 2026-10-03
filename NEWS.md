@@ -1,4 +1,9 @@
-# eolas (development version)
+# eolas 1.13.0
+
+* **Default API host is `https://api.eolas.nz`.** `EOLAS_BASE_URL` still overrides
+  it. `https://api.eolas.fyi` keeps serving. Signup, pricing, and docs links point
+  at `eolas.nz`. `support@eolas.fyi` is unchanged. Version moves 1.11.0 -> 1.13.0
+  to line up with `eolas-data`.
 
 * **Plan-cap truncation is now visible.** `eolas_get()` / `eolas_download()` read the
   server's `X-Eolas-Truncated` / `X-Plan-Row-Cap` headers. A capped response now

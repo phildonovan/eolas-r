@@ -115,5 +115,5 @@ eolas_download_bulk("nz_cpi", path = "nz_cpi.parquet", progress = FALSE)
 
 }
 \seealso{
-\url{https://docs.eolas.fyi/bulk-downloads/}
+\url{https://docs.eolas.nz/bulk-downloads/}
 }
