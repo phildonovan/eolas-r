@@ -323,11 +323,21 @@
       "not the dataset's most recent rows."
     ))
   }
-  msgs <- c(msgs, "i" = paste0(
-    "Check {.code eolas_meta(df)$truncated}. Use {.code start=}/{.code end=} to narrow, ",
-    "{.fn eolas_get_local} / {.fn eolas_sync_bulk} for the whole table, ",
-    "or upgrade at {.url https://eolas.nz/pricing}."
-  ))
+  if (!is.null(trunc$plan) && trunc$plan %in% c("trial", "free_legacy")) {
+    # Bulk files aren't in the trial: don't point at eolas_get_local()/eolas_sync_bulk().
+    msgs <- c(msgs, "i" = paste0(
+      "Check {.code eolas_meta(df)$truncated}. On the trial, large pulls are capped ",
+      "per request and must be paged with {.code start=}/{.code end=}, which is slow. ",
+      "Upgrade to Pro for bulk Parquet/CSV downloads ({.fn eolas_get_local} / ",
+      "{.fn eolas_sync_bulk}): {.url https://eolas.nz/pricing}."
+    ))
+  } else {
+    msgs <- c(msgs, "i" = paste0(
+      "Check {.code eolas_meta(df)$truncated}. Use {.code start=}/{.code end=} to narrow, ",
+      "{.fn eolas_get_local} / {.fn eolas_sync_bulk} for the whole table, ",
+      "or upgrade at {.url https://eolas.nz/pricing}."
+    ))
+  }
   cli::cli_warn(msgs)
   invisible(trunc)
 }

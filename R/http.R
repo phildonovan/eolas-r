@@ -81,6 +81,16 @@ eolas_http_perform <- function(req) {
     return(invisible(NULL))
   }
   upgrade <- "https://eolas.nz/pricing"
+  # HEAD probes (eolas_sync_bulk / eolas_get_local) carry no body: use the
+  # plan notice header, else a plain reason, never the "CF gateway" fallback.
+  if (!nzchar(detail) || grepl("^Empty response body", detail)) {
+    notice <- tryCatch(httr2::resp_header(resp, "X-Eolas-Notice"), error = function(e) NULL)
+    detail <- if (!is.null(notice) && nzchar(notice)) notice else switch(code,
+      bulk_not_in_plan = "Bulk downloads and the /changes feed are not included in your plan.",
+      trial_expired = "Your eolas trial has ended. Metadata stays available.",
+      trial_soft_cap = "Your trial request allowance is used up."
+    )
+  }
   msg <- if (grepl("pricing", detail, fixed = TRUE)) detail else paste0(detail, " Upgrade: ", upgrade)
   rlang::abort(msg,
     class = c("eolas_plan_error", "eolas_error"),
