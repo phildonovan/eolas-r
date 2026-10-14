@@ -1,5 +1,8 @@
 library(testthat)
 
+# eolas_key_save()/eolas_key_status() look up /v1/me for a plan notice; keep tests offline.
+Sys.setenv(EOLAS_NO_NOTICE = "1")
+
 # Shared HTTP mock helpers for the eolas package test suite.
 # Always mock via with_mocked_bindings(..., .package = "eolas") so bindings
 # restore cleanly between tests (local_mocked_bindings(.env = ns) leaked).
