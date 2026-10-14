@@ -100,7 +100,36 @@ eolas_key_save <- function(key = NULL) {
   cli::cli_alert_success(
     "Saved key {.field {masked}} to OS keyring (service {.val {service}})"
   )
+  .eolas_show_plan(key)
   invisible(NULL)
+}
+
+# One-time plan message after saving / checking a key (GET /v1/me). Best effort:
+# any failure is silent. Set EOLAS_NO_NOTICE=1 to skip the lookup.
+.eolas_show_plan <- function(key, base_url = EOLAS_BASE_URL) {
+  if (nzchar(Sys.getenv("EOLAS_NO_NOTICE", unset = ""))) {
+    return(invisible(NULL))
+  }
+  info <- tryCatch({
+    req <- httr2::request(paste0(base_url, "/v1/me")) |>
+      httr2::req_headers("X-API-Key" = key) |>
+      httr2::req_user_agent(.eolas_user_agent()) |>
+      httr2::req_timeout(5) |>
+      httr2::req_error(is_error = \(r) FALSE)
+    resp <- eolas_http_perform(req)
+    if (httr2::resp_status(resp) != 200L) NULL else httr2::resp_body_json(resp)
+  }, error = function(e) NULL)
+  if (is.null(info) || is.null(info$plan)) {
+    return(invisible(NULL))
+  }
+  plan <- info$plan
+  notice <- info$notice
+  if (!is.null(notice) && nzchar(notice)) {
+    cli::cli_inform(c("i" = "plan: {.val {plan}} - {notice}"))
+  } else {
+    cli::cli_inform(c("i" = "plan: {.val {plan}}"))
+  }
+  invisible(info)
 }
 
 #' Remove your eolas API key from the OS keyring
@@ -160,6 +189,7 @@ eolas_key_status <- function() {
       "key:    {.field {masked}}",
       "source: in-session ({.fn eolas_key})"
     ))
+    .eolas_show_plan(session_key)
     return(invisible("session"))
   }
 
@@ -170,6 +200,7 @@ eolas_key_status <- function() {
       "key:    {.field {masked}}",
       "source: env {.envvar EOLAS_API_KEY}"
     ))
+    .eolas_show_plan(env_key)
     return(invisible("env"))
   }
 
@@ -181,6 +212,7 @@ eolas_key_status <- function() {
       "key:    {.field {masked}}",
       "source: OS keyring (service {.val {service}})"
     ))
+    .eolas_show_plan(kr_key)
     return(invisible("keyring"))
   }
 
@@ -191,6 +223,7 @@ eolas_key_status <- function() {
       "key:    {.field {masked}}",
       "source: config file ({.path ~/.eolas/config.json})"
     ))
+    .eolas_show_plan(cfg_key)
     return(invisible("config"))
   }
 

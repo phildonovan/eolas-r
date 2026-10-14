@@ -52,9 +52,46 @@ eolas_http_perform <- function(req) {
   detail
 }
 
+# Server plan refusals, keyed by the X-Eolas-Error-Code response header.
+.EOLAS_PLAN_ERROR_CODES <- c("bulk_not_in_plan", "trial_expired", "trial_soft_cap")
+
+# Show each distinct X-Eolas-Notice (trial row cap / end date / Free sunset) once
+# per R session as a warning of class `eolas_plan_notice`.
+.eolas_plan_notice <- function(resp) {
+  notice <- tryCatch(httr2::resp_header(resp, "X-Eolas-Notice"), error = function(e) NULL)
+  if (is.null(notice) || !nzchar(notice)) {
+    return(invisible(NULL))
+  }
+  seen <- .eolas_runtime$notices_seen %||% character()
+  if (notice %in% seen) {
+    return(invisible(NULL))
+  }
+  .eolas_runtime$notices_seen <- c(seen, notice)
+  rlang::warn(notice, class = "eolas_plan_notice")
+  invisible(notice)
+}
+
+# Abort with class `eolas_plan_error` when `resp` is a plan refusal.
+# Fields: $code, $status, $upgrade_url. `tryCatch(..., eolas_plan_error = )`.
+.eolas_abort_plan_error <- function(resp, detail) {
+  code <- tryCatch(httr2::resp_header(resp, "X-Eolas-Error-Code"), error = function(e) NULL)
+  status <- httr2::resp_status(resp)
+  if (is.null(code) || !(code %in% .EOLAS_PLAN_ERROR_CODES) ||
+        !(status %in% c(402L, 403L, 429L))) {
+    return(invisible(NULL))
+  }
+  upgrade <- "https://eolas.nz/pricing"
+  msg <- if (grepl("pricing", detail, fixed = TRUE)) detail else paste0(detail, " Upgrade: ", upgrade)
+  rlang::abort(msg,
+    class = c("eolas_plan_error", "eolas_error"),
+    code = code, status = status, upgrade_url = upgrade, call = NULL
+  )
+}
+
 eolas_check_status <- function(resp) {
   status <- httr2::resp_status(resp)
   if (status == 200L) {
+    .eolas_plan_notice(resp)
     return(invisible(resp))
   }
 
@@ -78,6 +115,7 @@ eolas_check_status <- function(resp) {
     }
   )
   detail <- .eolas_sanitize_detail(body$detail %||% "Unknown error", resp)
+  .eolas_abort_plan_error(resp, detail)
 
   if (status == 401L) {
     cli::cli_abort(c(

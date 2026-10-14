@@ -1,3 +1,19 @@
+# eolas 1.14.0
+
+* **Pro trial notices.** The server's `X-Eolas-Notice` header (trial row cap and
+  end date, "large pulls are paginated and slow on trial", Free-plan sunset) is
+  now shown once per R session as a warning of class `eolas_plan_notice`.
+  Silence it with `suppressWarnings(..., classes = "eolas_plan_notice")`.
+* **`eolas_key_save()` / `eolas_key_status()`** print your plan and any trial
+  notice (via `GET /v1/me`). This is best effort: offline it is skipped
+  silently, and `EOLAS_NO_NOTICE=1` turns it off.
+* **`eolas_plan_error` condition.** Plan refusals now abort with class
+  `eolas_plan_error`, which carries `$code`, `$status` and `$upgrade_url`.
+  `bulk_not_in_plan` (403) means bulk and the changelog aren't in the trial.
+  `trial_expired` (402) means the trial has ended and metadata still works.
+  `trial_soft_cap` (429) means the trial allowance is used up. Catch it with
+  `tryCatch(..., eolas_plan_error = function(e) ...)`.
+
 # eolas 1.13.0
 
 * **Default API host is `https://api.eolas.nz`.** `EOLAS_BASE_URL` still overrides
