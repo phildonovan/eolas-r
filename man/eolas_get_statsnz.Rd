@@ -2,7 +2,7 @@
 % Please edit documentation in R/sources.R
 \name{eolas_get_statsnz}
 \alias{eolas_get_statsnz}
-\title{Fetch a Stats NZ series}
+\title{Fetch a Stats NZ dataset}
 \usage{
 eolas_get_statsnz(
   name,

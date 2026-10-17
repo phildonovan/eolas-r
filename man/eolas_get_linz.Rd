@@ -2,7 +2,7 @@
 % Please edit documentation in R/sources.R
 \name{eolas_get_linz}
 \alias{eolas_get_linz}
-\title{Fetch a LINZ series}
+\title{Fetch a LINZ dataset}
 \usage{
 eolas_get_linz(
   name,
@@ -39,5 +39,5 @@ Cannot be combined with \code{as_sf = TRUE}.}
 \item{...}{Forwarded to \code{\link[=eolas_get]{eolas_get()}} (\code{progress}, \code{force}, \code{cache_dir}, etc.).}
 }
 \description{
-Fetch a LINZ series
+Fetch a LINZ dataset
 }

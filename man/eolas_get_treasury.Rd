@@ -2,7 +2,7 @@
 % Please edit documentation in R/sources.R
 \name{eolas_get_treasury}
 \alias{eolas_get_treasury}
-\title{Fetch a NZ Treasury series}
+\title{Fetch a NZ Treasury dataset}
 \usage{
 eolas_get_treasury(
   name,
@@ -39,5 +39,5 @@ Cannot be combined with \code{as_sf = TRUE}.}
 \item{...}{Forwarded to \code{\link[=eolas_get]{eolas_get()}} (\code{progress}, \code{force}, \code{cache_dir}, etc.).}
 }
 \description{
-Fetch a NZ Treasury series
+Fetch a NZ Treasury dataset
 }
