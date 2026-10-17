@@ -1310,7 +1310,7 @@ eolas_get_local <- function(name,
         stop(
           conditionMessage(sfarrow_err),
           "\n\nThe geometry_wkt fallback failed: the plain Parquet file has no ",
-          "'geometry_wkt' column. Contact support@eolas.fyi.",
+          "'geometry_wkt' column. Contact support@eolas.nz.",
           call. = FALSE
         )
       }
