@@ -89,7 +89,7 @@ eolas_list <- function(source = NULL, base_url = EOLAS_BASE_URL) {
 #'
 #' Substring search over the dataset catalog. Common analyst tokens are
 #' expanded -- e.g. `"HLFS"` also matches labour-force and unemployment
-#' datasets; `"OCR"` matches official cash rate series.
+#' datasets; `"OCR"` matches official cash rate datasets.
 #'
 #' @param query Search string (case-insensitive).
 #' @param source Optional source filter, e.g. `"RBNZ"`.

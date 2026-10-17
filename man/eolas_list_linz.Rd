@@ -2,10 +2,10 @@
 % Please edit documentation in R/sources.R
 \name{eolas_list_linz}
 \alias{eolas_list_linz}
-\title{List all LINZ series}
+\title{List all LINZ datasets}
 \usage{
 eolas_list_linz()
 }
 \description{
-List all LINZ series
+List all LINZ datasets
 }
