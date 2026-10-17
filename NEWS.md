@@ -1,3 +1,10 @@
+# eolas 1.14.1
+
+* Package metadata only: the maintainer is now listed as Phil Donovan
+  (phil@eolas.nz) instead of the company name, so r-universe and CRAN-style
+  listings show a person. Virtus Solutions stays the copyright holder, matching
+  `LICENSE`. No code changes.
+
 # eolas 1.14.0
 
 * **Pro trial notices.** The server's `X-Eolas-Notice` header (trial row cap and
