@@ -2,10 +2,10 @@
 % Please edit documentation in R/sources.R
 \name{eolas_list_oecd}
 \alias{eolas_list_oecd}
-\title{List all OECD series}
+\title{List all OECD datasets}
 \usage{
 eolas_list_oecd()
 }
 \description{
-List all OECD series
+List all OECD datasets
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/sources.R
 \name{eolas_get_rbnz}
 \alias{eolas_get_rbnz}
-\title{Fetch an RBNZ series}
+\title{Fetch an RBNZ dataset}
 \usage{
 eolas_get_rbnz(
   name,
@@ -39,5 +39,5 @@ Cannot be combined with \code{as_sf = TRUE}.}
 \item{...}{Forwarded to \code{\link[=eolas_get]{eolas_get()}} (\code{progress}, \code{force}, \code{cache_dir}, etc.).}
 }
 \description{
-Fetch an RBNZ series
+Fetch an RBNZ dataset
 }
