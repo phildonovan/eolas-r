@@ -2,7 +2,7 @@
 % Please edit documentation in R/sources.R
 \name{eolas_list_geonet}
 \alias{eolas_list_geonet}
-\title{List all GeoNet datasets available in eolas}
+\title{List all GeoNet datasets available in eolas (withdrawn from the catalogue)}
 \usage{
 eolas_list_geonet()
 }
@@ -10,5 +10,5 @@ eolas_list_geonet()
 A data frame (tibble if available) of dataset metadata.
 }
 \description{
-List all GeoNet datasets available in eolas
+List all GeoNet datasets available in eolas (withdrawn from the catalogue)
 }

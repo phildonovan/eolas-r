@@ -2,7 +2,7 @@
 % Please edit documentation in R/sources.R
 \name{eolas_get_geonet}
 \alias{eolas_get_geonet}
-\title{Fetch a GeoNet dataset (NZ earthquakes, volcanic alert levels, strong-motion sensors)}
+\title{Fetch a GeoNet dataset (withdrawn from the catalogue)}
 \usage{
 eolas_get_geonet(
   name,
@@ -43,22 +43,22 @@ A \code{eolas_dataset} data frame, or an \code{sf} object when geometry is
 present and conversion is enabled.
 }
 \description{
-A named wrapper over \code{\link[=eolas_get]{eolas_get()}} for datasets sourced from GeoNet,
-operated by Earth Sciences New Zealand (formerly GNS Science). Covers
-recent NZ earthquake activity (MMI>=3), volcanic alert levels for 12
-monitored volcanoes, and strong-motion sensor station locations.
+A named wrapper over \code{\link[=eolas_get]{eolas_get()}} for datasets sourced from GeoNet.
+On 2026-10-04 eolas stopped serving the three GeoNet tables
+(\code{geonet_quakes_recent}, \code{geonet_volcanic_alert_levels},
+\code{geonet_strong_motion_sensors}). They were a rolling status feed. The
+function is kept for backward compatibility but no GeoNet datasets are
+currently in the catalogue.
 }
 \details{
-The earthquake catalogue (\code{geonet_quakes_recent}) is a rolling window of
-recent events, not a historical archive. Refreshed every 6 hours.
-Source: \url{https://www.geonet.org.nz}.
-Licence: CC-BY 3.0 NZ (Earth Sciences New Zealand, formerly GNS Science).
+GeoNet publishes the live data itself: live API
+\url{https://api.geonet.org.nz}, quake search
+\url{https://www.geonet.org.nz/quakes}.
 }
 \examples{
 \dontrun{
-eolas_key("your_key")
-df  <- eolas_get_geonet("geonet_quakes_recent")         # rolling ~100 recent MMI>=3 quakes
-df  <- eolas_get_geonet("geonet_volcanic_alert_levels") # 12 monitored NZ volcanoes
-gdf <- eolas_get_geonet("geonet_strong_motion_sensors") # 25 strong-motion stations
+# GeoNet was withdrawn from the catalogue on 2026-10-04; this call no
+# longer returns data. Use https://api.geonet.org.nz instead.
+eolas_list_geonet()
 }
 }
