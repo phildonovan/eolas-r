@@ -7,7 +7,7 @@
 [![release](https://img.shields.io/github/v/tag/phildonovan/eolas-r?label=release)](https://github.com/phildonovan/eolas-r/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-R client for the [eolas.nz](https://eolas.nz) statistical data API — 1,500+ official New Zealand statistical & geospatial datasets, plus OECD data for international comparisons, returned as tidy data frames (or `sf` objects for geospatial layers).
+R client for the [eolas.nz](https://eolas.nz) data API — 1,500+ official New Zealand datasets, geospatial layers included, plus OECD data for international comparisons, returned as tidy data frames (or `sf` objects for geospatial layers).
 
 _Coverage is New Zealand + OECD today. Australian sources are on the roadmap — not yet available; OECD data already includes Australia (and other OECD members) for cross-country comparisons._
 
