@@ -106,7 +106,7 @@ Get an API key at <https://eolas.nz/signup>. Free plan is 10 requests/month; Pro
 
 One `eolas_get_*()` and `eolas_list_*()` per source:
 
-Core: `statsnz`, `statsnz_geo`, `oecd`, `rbnz`, `treasury`, `linz`, `lris`, `mbie`, `nzta`, `msd`, `police`, `acc`, `edcounts`, `worksafe`, `doc`, `geonet`, `pharmac`, `eeca`, `immigration`, `charities`. Auckland: `akl_council`, `akl_transport`. Regional-council bundles: `northland`, `bay_of_plenty`, `hawkes_bay`, `taranaki`, `manawatu_whanganui`, `wellington`, `top_of_south`, `west_coast`, `otago`, `southland`, `napier_whanganui`, `colab_waikato`, `ecan_canterbury`.
+Core: `statsnz`, `statsnz_geo`, `oecd`, `rbnz`, `treasury`, `linz`, `lris`, `mbie`, `nzta`, `msd`, `police`, `acc`, `edcounts`, `worksafe`, `doc`, `pharmac`, `eeca`, `immigration`, `charities`. Auckland: `akl_council`, `akl_transport`. Regional-council bundles: `northland`, `bay_of_plenty`, `hawkes_bay`, `taranaki`, `manawatu_whanganui`, `wellington`, `top_of_south`, `west_coast`, `otago`, `southland`, `napier_whanganui`, `colab_waikato`, `ecan_canterbury`. (`geonet` was withdrawn from the catalogue on 2026-10-04.)
 
 Run `eolas_list()` for the full live catalogue — the set above is generated and grows; `eolas_list()` is always authoritative.
 
