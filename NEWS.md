@@ -1,3 +1,14 @@
+# eolas 1.14.1
+
+* **Trial-aware row-cap warning.** When a request is capped on the Pro trial,
+  the warning says large pulls are capped and slow on the trial and suggests
+  upgrading, instead of pointing at `eolas_get_local()` / `eolas_sync_bulk()`
+  (bulk files aren't in the trial).
+  Plan refusals with no response body (for example `HEAD`) now use the
+  `X-Eolas-Notice` header for the message.
+* Bulk downloads: the geometry fallback error now points at support@eolas.nz.
+* README: eolas is described as a "data API" rather than a "statistical data API".
+
 # eolas 1.14.0
 
 * **Pro trial notices.** The server's `X-Eolas-Notice` header (trial row cap and
