@@ -1,3 +1,7 @@
+# eolas 1.14.1
+
+* Maintainer contact now phil@eolas.nz.
+
 # eolas 1.14.0
 
 * **Pro trial notices.** The server's `X-Eolas-Notice` header (trial row cap and

@@ -1,9 +1,12 @@
 Package: eolas
-Title: Client for the eolas.nz Statistical Data API
-Version: 1.14.0
-Authors@R: person("Virtus Solutions", email = "phil@virtus-solutions.io", role = c("aut", "cre"))
+Title: Client for the eolas.nz Data API
+Version: 1.14.1
+Authors@R: c(
+    person("Phil", "Donovan", email = "phil@eolas.nz", role = c("aut", "cre")),
+    person("Virtus Solutions Limited", role = c("cph", "fnd"))
+  )
 Description: Provides convenient access to the eolas.nz REST API
-    (<https://api.eolas.nz>), which serves 1,500+ official statistical and
+    (<https://api.eolas.nz>), which serves 1,500+ official data and
     geospatial datasets from Stats NZ, OECD, RBNZ, LINZ, NZTA, and more.
     Source-specific functions (eolas_get_statsnz(), eolas_get_oecd(), etc.)
     return tidy data frames ready for analysis with ggplot2, dplyr, or your
