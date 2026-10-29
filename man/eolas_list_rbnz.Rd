@@ -2,10 +2,10 @@
 % Please edit documentation in R/sources.R
 \name{eolas_list_rbnz}
 \alias{eolas_list_rbnz}
-\title{List all RBNZ series}
+\title{List all RBNZ datasets}
 \usage{
 eolas_list_rbnz()
 }
 \description{
-List all RBNZ series
+List all RBNZ datasets
 }

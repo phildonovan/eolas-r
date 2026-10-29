@@ -25,7 +25,7 @@
 # Stats NZ
 # ---------------------------------------------------------------------------
 
-#' Fetch a Stats NZ series
+#' Fetch a Stats NZ dataset
 #'
 #' A named wrapper over [eolas_get()] that tags the result with the
 #' "Stats NZ" source label.
@@ -60,7 +60,7 @@ eolas_get_statsnz <- function(name, start = NULL, end = NULL, limit = NULL, as_s
   .eolas_get_source(name, "Stats NZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
-#' List all Stats NZ series
+#' List all Stats NZ datasets
 #' @return A data frame (tibble if available) of dataset metadata.
 #' @export
 eolas_list_statsnz <- function() .eolas_list_source("Stats NZ")
@@ -70,14 +70,14 @@ eolas_list_statsnz <- function() .eolas_list_source("Stats NZ")
 # OECD
 # ---------------------------------------------------------------------------
 
-#' Fetch an OECD series
+#' Fetch an OECD dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
 eolas_get_oecd <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
   .eolas_get_source(name, "OECD", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
-#' List all OECD series
+#' List all OECD datasets
 #' @export
 eolas_list_oecd <- function() .eolas_list_source("OECD")
 
@@ -86,14 +86,14 @@ eolas_list_oecd <- function() .eolas_list_source("OECD")
 # RBNZ
 # ---------------------------------------------------------------------------
 
-#' Fetch an RBNZ series
+#' Fetch an RBNZ dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
 eolas_get_rbnz <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
   .eolas_get_source(name, "RBNZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
-#' List all RBNZ series
+#' List all RBNZ datasets
 #' @export
 eolas_list_rbnz <- function() .eolas_list_source("RBNZ")
 
@@ -102,14 +102,14 @@ eolas_list_rbnz <- function() .eolas_list_source("RBNZ")
 # NZ Treasury
 # ---------------------------------------------------------------------------
 
-#' Fetch a NZ Treasury series
+#' Fetch a NZ Treasury dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
 eolas_get_treasury <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
   .eolas_get_source(name, "NZ Treasury", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
-#' List all NZ Treasury series
+#' List all NZ Treasury datasets
 #' @export
 eolas_list_treasury <- function() .eolas_list_source("NZ Treasury")
 
@@ -118,14 +118,14 @@ eolas_list_treasury <- function() .eolas_list_source("NZ Treasury")
 # LINZ
 # ---------------------------------------------------------------------------
 
-#' Fetch a LINZ series
+#' Fetch a LINZ dataset
 #' @inheritParams eolas_get_statsnz
 #' @export
 eolas_get_linz <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
   .eolas_get_source(name, "LINZ", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
-#' List all LINZ series
+#' List all LINZ datasets
 #' @export
 eolas_list_linz <- function() .eolas_list_source("LINZ")
 

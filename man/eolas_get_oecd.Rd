@@ -2,7 +2,7 @@
 % Please edit documentation in R/sources.R
 \name{eolas_get_oecd}
 \alias{eolas_get_oecd}
-\title{Fetch an OECD series}
+\title{Fetch an OECD dataset}
 \usage{
 eolas_get_oecd(
   name,
@@ -39,5 +39,5 @@ Cannot be combined with \code{as_sf = TRUE}.}
 \item{...}{Forwarded to \code{\link[=eolas_get]{eolas_get()}} (\code{progress}, \code{force}, \code{cache_dir}, etc.).}
 }
 \description{
-Fetch an OECD series
+Fetch an OECD dataset
 }

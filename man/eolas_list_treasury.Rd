@@ -2,10 +2,10 @@
 % Please edit documentation in R/sources.R
 \name{eolas_list_treasury}
 \alias{eolas_list_treasury}
-\title{List all NZ Treasury series}
+\title{List all NZ Treasury datasets}
 \usage{
 eolas_list_treasury()
 }
 \description{
-List all NZ Treasury series
+List all NZ Treasury datasets
 }

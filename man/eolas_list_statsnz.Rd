@@ -2,7 +2,7 @@
 % Please edit documentation in R/sources.R
 \name{eolas_list_statsnz}
 \alias{eolas_list_statsnz}
-\title{List all Stats NZ series}
+\title{List all Stats NZ datasets}
 \usage{
 eolas_list_statsnz()
 }
@@ -10,5 +10,5 @@ eolas_list_statsnz()
 A data frame (tibble if available) of dataset metadata.
 }
 \description{
-List all Stats NZ series
+List all Stats NZ datasets
 }
