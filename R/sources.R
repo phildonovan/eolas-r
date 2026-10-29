@@ -371,34 +371,34 @@ eolas_list_lris <- function() .eolas_list_source("Manaaki Whenua / LRIS")
 # GeoNet
 # ---------------------------------------------------------------------------
 
-#' Fetch a GeoNet dataset (NZ earthquakes, volcanic alert levels, strong-motion sensors)
+#' Fetch a GeoNet dataset (withdrawn from the catalogue)
 #'
-#' A named wrapper over [eolas_get()] for datasets sourced from GeoNet,
-#' operated by Earth Sciences New Zealand (formerly GNS Science). Covers
-#' recent NZ earthquake activity (MMI>=3), volcanic alert levels for 12
-#' monitored volcanoes, and strong-motion sensor station locations.
+#' A named wrapper over [eolas_get()] for datasets sourced from GeoNet.
+#' On 2026-10-04 eolas stopped serving the three GeoNet tables
+#' (`geonet_quakes_recent`, `geonet_volcanic_alert_levels`,
+#' `geonet_strong_motion_sensors`). They were a rolling status feed. The
+#' function is kept for backward compatibility but no GeoNet datasets are
+#' currently in the catalogue.
 #'
 #' @inheritParams eolas_get_statsnz
 #' @return A `eolas_dataset` data frame, or an `sf` object when geometry is
 #'   present and conversion is enabled.
 #' @details
-#'   The earthquake catalogue (`geonet_quakes_recent`) is a rolling window of
-#'   recent events, not a historical archive. Refreshed every 6 hours.
-#'   Source: \url{https://www.geonet.org.nz}.
-#'   Licence: CC-BY 3.0 NZ (Earth Sciences New Zealand, formerly GNS Science).
+#'   GeoNet publishes the live data itself: live API
+#'   \url{https://api.geonet.org.nz}, quake search
+#'   \url{https://www.geonet.org.nz/quakes}.
 #' @export
 #' @examples
 #' \dontrun{
-#' eolas_key("your_key")
-#' df  <- eolas_get_geonet("geonet_quakes_recent")         # rolling ~100 recent MMI>=3 quakes
-#' df  <- eolas_get_geonet("geonet_volcanic_alert_levels") # 12 monitored NZ volcanoes
-#' gdf <- eolas_get_geonet("geonet_strong_motion_sensors") # 25 strong-motion stations
+#' # GeoNet was withdrawn from the catalogue on 2026-10-04; this call no
+#' # longer returns data. Use https://api.geonet.org.nz instead.
+#' eolas_list_geonet()
 #' }
 eolas_get_geonet <- function(name, start = NULL, end = NULL, limit = NULL, as_sf = NULL, as_arrow = FALSE, ...) {
   .eolas_get_source(name, "GeoNet", start = start, end = end, limit = limit, as_sf = as_sf, as_arrow = as_arrow, ...)
 }
 
-#' List all GeoNet datasets available in eolas
+#' List all GeoNet datasets available in eolas (withdrawn from the catalogue)
 #' @return A data frame (tibble if available) of dataset metadata.
 #' @export
 eolas_list_geonet <- function() .eolas_list_source("GeoNet")
